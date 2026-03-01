@@ -39,10 +39,10 @@
 
 ## Session Continuity
 
-- **Last action**: Created roadmap artifacts and updated requirement traceability.
+- **Last action**: Captured Phase 1 context and wrote `01-CONTEXT.md`.
 - **Next command**: `/gsd:plan-phase 1`
-- **If resuming later**: Confirm phase status in `.planning/ROADMAP.md`, then continue from Phase 1 planning.
+- **If resuming later**: Open `.planning/phases/01-local-runtime-baseline/01-CONTEXT.md`, confirm phase status in `.planning/ROADMAP.md`, then continue with Phase 1 planning.
 
 ---
 *Initialized: 2026-03-01*
-*Last updated: 2026-03-01 during roadmap creation*
+*Last updated: 2026-03-01 after phase 1 context gathering*
