@@ -86,36 +86,36 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| KB-01 | TBD | Pending |
-| KB-02 | TBD | Pending |
-| KB-03 | TBD | Pending |
-| KB-04 | TBD | Pending |
-| KB-05 | TBD | Pending |
-| RET-01 | TBD | Pending |
-| RET-02 | TBD | Pending |
-| RET-03 | TBD | Pending |
-| RET-04 | TBD | Pending |
-| MEM-01 | TBD | Pending |
-| MEM-02 | TBD | Pending |
-| MEM-03 | TBD | Pending |
-| MEM-04 | TBD | Pending |
-| CLI-01 | TBD | Pending |
-| CLI-02 | TBD | Pending |
-| CLI-03 | TBD | Pending |
-| CLI-04 | TBD | Pending |
-| MOD-01 | TBD | Pending |
-| MOD-02 | TBD | Pending |
-| MOD-03 | TBD | Pending |
-| PRIV-01 | TBD | Pending |
-| PRIV-02 | TBD | Pending |
-| PRIV-03 | TBD | Pending |
-| PRIV-04 | TBD | Pending |
+| KB-01 | Phase 2 | Pending |
+| KB-02 | Phase 2 | Pending |
+| KB-03 | Phase 2 | Pending |
+| KB-04 | Phase 2 | Pending |
+| KB-05 | Phase 2 | Pending |
+| RET-01 | Phase 3 | Pending |
+| RET-02 | Phase 3 | Pending |
+| RET-03 | Phase 3 | Pending |
+| RET-04 | Phase 3 | Pending |
+| MEM-01 | Phase 4 | Pending |
+| MEM-02 | Phase 4 | Pending |
+| MEM-03 | Phase 4 | Pending |
+| MEM-04 | Phase 4 | Pending |
+| CLI-01 | Phase 1 | Pending |
+| CLI-02 | Phase 5 | Pending |
+| CLI-03 | Phase 3 | Pending |
+| CLI-04 | Phase 5 | Pending |
+| MOD-01 | Phase 1 | Pending |
+| MOD-02 | Phase 6 | Pending |
+| MOD-03 | Phase 1 | Pending |
+| PRIV-01 | Phase 1 | Pending |
+| PRIV-02 | Phase 2 | Pending |
+| PRIV-03 | Phase 6 | Pending |
+| PRIV-04 | Phase 1 | Pending |
 
 **Coverage:**
 - v1 requirements: 24 total
-- Mapped to phases: 0
-- Unmapped: 24 ⚠
+- Mapped to phases: 24
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-01*
-*Last updated: 2026-03-01 after initial definition*
+*Last updated: 2026-03-01 during roadmap creation*
