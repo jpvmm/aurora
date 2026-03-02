@@ -2,6 +2,7 @@
 
 import typer
 
+from aurora.cli.model import model_app
 
 app = typer.Typer(
     no_args_is_help=True,
@@ -25,7 +26,6 @@ def _placeholder(group_name: str) -> None:
 
 setup_app = typer.Typer(invoke_without_command=True, no_args_is_help=False)
 config_app = typer.Typer(invoke_without_command=True, no_args_is_help=False)
-model_app = typer.Typer(invoke_without_command=True, no_args_is_help=False)
 doctor_app = typer.Typer(invoke_without_command=True, no_args_is_help=False)
 
 
@@ -37,11 +37,6 @@ def setup_placeholder() -> None:
 @config_app.callback()
 def config_placeholder() -> None:
     _placeholder("config")
-
-
-@model_app.callback()
-def model_placeholder() -> None:
-    _placeholder("model")
 
 
 @doctor_app.callback()

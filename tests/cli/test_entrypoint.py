@@ -38,10 +38,18 @@ def test_phase_one_command_groups_are_listed_in_root_help(command_group: str) ->
     assert command_group in result.output
 
 
-@pytest.mark.parametrize("command_group", ["setup", "config", "model", "doctor"])
+@pytest.mark.parametrize("command_group", ["setup", "config", "doctor"])
 def test_phase_one_group_placeholders_are_explicit_in_pt_br(command_group: str) -> None:
     app_module = importlib.import_module("aurora.cli.app")
     result = RUNNER.invoke(app_module.app, [command_group], prog_name="aurora")
 
     assert result.exit_code == 1
     assert "ainda não implementado" in result.output.lower()
+
+
+def test_model_group_exposes_set_command_in_help() -> None:
+    app_module = importlib.import_module("aurora.cli.app")
+    result = RUNNER.invoke(app_module.app, ["model", "--help"], prog_name="aurora")
+
+    assert result.exit_code == 0
+    assert "set" in result.output
