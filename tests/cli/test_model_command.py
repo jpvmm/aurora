@@ -262,3 +262,161 @@ def test_model_health_supports_json_output(
     assert payload["ok"] is False
     assert payload["category"] == "endpoint_offline"
     assert payload["recovery_commands"] == ["aurora model start"]
+
+
+def test_model_start_non_interactive_requires_override_for_external_runtime(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("AURORA_CONFIG_DIR", str(tmp_path / "config"))
+    app_module = importlib.import_module("aurora.cli.app")
+    model_module = importlib.import_module("aurora.cli.model")
+
+    class FakeService:
+        def start_server(self, **kwargs):
+            callback = kwargs.get("external_reuse_decision")
+            if callback is not None:
+                callback(
+                    LifecycleStatus(
+                        lifecycle_state="running",
+                        ownership="external",
+                        endpoint_url="http://127.0.0.1:8080",
+                        port=8080,
+                        model_id="Qwen3-8B-Q8_0",
+                        pid=None,
+                        process_group_id=None,
+                        uptime_seconds=None,
+                        ready=True,
+                        message="external",
+                    )
+                )
+            return LifecycleStatus(
+                lifecycle_state="running",
+                ownership="external",
+                endpoint_url="http://127.0.0.1:8080",
+                port=8080,
+                model_id="Qwen3-8B-Q8_0",
+                pid=None,
+                process_group_id=None,
+                uptime_seconds=None,
+                ready=True,
+            )
+
+    monkeypatch.setattr(model_module, "_is_interactive_terminal", lambda: False, raising=False)
+    monkeypatch.setattr(model_module, "ServerLifecycleService", lambda: FakeService(), raising=False)
+
+    result = RUNNER.invoke(app_module.app, ["model", "start"], prog_name="aurora")
+
+    assert result.exit_code == 1
+    assert "--yes" in result.output
+    assert "--force" in result.output
+
+
+def test_model_set_blocks_restart_without_override_in_non_interactive_mode(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("AURORA_CONFIG_DIR", str(tmp_path / "config"))
+    app_module = importlib.import_module("aurora.cli.app")
+    model_module = importlib.import_module("aurora.cli.model")
+
+    class FakeService:
+        def get_status(self):
+            return LifecycleStatus(
+                lifecycle_state="running",
+                ownership="managed",
+                endpoint_url="http://127.0.0.1:8080",
+                port=8080,
+                model_id="Qwen3-8B-Q8_0",
+                pid=9100,
+                process_group_id=9100,
+                uptime_seconds=100,
+                ready=True,
+            )
+
+    monkeypatch.setattr(model_module, "_is_interactive_terminal", lambda: False, raising=False)
+    monkeypatch.setattr(model_module, "ServerLifecycleService", lambda: FakeService(), raising=False)
+
+    result = RUNNER.invoke(
+        app_module.app,
+        ["model", "set", "--model", "Qwen3-8B-Q4_0"],
+        prog_name="aurora",
+    )
+
+    assert result.exit_code == 1
+    assert "runtime ativo" in result.output.lower()
+    assert "--yes" in result.output
+
+
+def test_model_set_yes_restarts_managed_runtime_after_model_change(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("AURORA_CONFIG_DIR", str(tmp_path / "config"))
+    app_module = importlib.import_module("aurora.cli.app")
+    model_module = importlib.import_module("aurora.cli.model")
+    calls: list[tuple[str, dict[str, object]]] = []
+
+    class FakeService:
+        def get_status(self):
+            return LifecycleStatus(
+                lifecycle_state="running",
+                ownership="managed",
+                endpoint_url="http://127.0.0.1:8080",
+                port=8080,
+                model_id="Qwen3-8B-Q8_0",
+                pid=9100,
+                process_group_id=9100,
+                uptime_seconds=100,
+                ready=True,
+            )
+
+        def stop_server(self, **kwargs):
+            calls.append(("stop", kwargs))
+            return LifecycleStatus(
+                lifecycle_state="stopped",
+                ownership=None,
+                endpoint_url="http://127.0.0.1:8080",
+                port=8080,
+                model_id="Qwen3-8B-Q4_0",
+                pid=None,
+                process_group_id=None,
+                uptime_seconds=None,
+                ready=False,
+            )
+
+        def start_server(self, **kwargs):
+            calls.append(("start", kwargs))
+            return LifecycleStatus(
+                lifecycle_state="running",
+                ownership="managed",
+                endpoint_url="http://127.0.0.1:8080",
+                port=8080,
+                model_id="Qwen3-8B-Q4_0",
+                pid=9200,
+                process_group_id=9200,
+                uptime_seconds=1,
+                ready=True,
+            )
+
+    monkeypatch.setattr(model_module, "_is_interactive_terminal", lambda: False, raising=False)
+    monkeypatch.setattr(model_module, "ServerLifecycleService", lambda: FakeService(), raising=False)
+
+    result = RUNNER.invoke(
+        app_module.app,
+        ["model", "set", "--model", "Qwen3-8B-Q4_0", "--yes"],
+        prog_name="aurora",
+    )
+
+    assert result.exit_code == 0
+    assert calls == [
+        ("stop", {"force": True}),
+        (
+            "start",
+            {
+                "allow_external_reuse": False,
+                "non_interactive": True,
+                "reason": "model_change_restart",
+            },
+        ),
+    ]
