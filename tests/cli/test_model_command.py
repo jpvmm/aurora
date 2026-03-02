@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import importlib
+import json
 from pathlib import Path
 
 from typer.testing import CliRunner
 
 from aurora.runtime.model_download import DownloadResult
+from aurora.runtime.server_lifecycle import LifecycleHealth, LifecycleStatus
 from aurora.runtime.settings import load_settings
 
 
@@ -128,3 +130,135 @@ def test_model_set_runs_hf_download_pipeline_when_source_is_provided(
     assert captured["private"] is True
     assert captured["token"] == "hf_test_token"
     assert "Modelo disponível em" in result.output
+
+
+def test_model_start_prints_persistent_server_guidance(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("AURORA_CONFIG_DIR", str(tmp_path / "config"))
+    app_module = importlib.import_module("aurora.cli.app")
+    model_module = importlib.import_module("aurora.cli.model")
+
+    class FakeService:
+        def start_server(self, **kwargs):
+            _ = kwargs
+            return LifecycleStatus(
+                lifecycle_state="running",
+                ownership="managed",
+                endpoint_url="http://127.0.0.1:8080",
+                port=8080,
+                model_id="Qwen3-8B-Q8_0",
+                pid=4242,
+                process_group_id=4242,
+                uptime_seconds=1,
+                ready=True,
+                message="runtime ok",
+            )
+
+    monkeypatch.setattr(model_module, "ServerLifecycleService", lambda: FakeService(), raising=False)
+
+    result = RUNNER.invoke(app_module.app, ["model", "start"], prog_name="aurora")
+
+    assert result.exit_code == 0
+    assert "permanece ativo" in result.output.lower()
+    assert "aurora model stop" in result.output
+
+
+def test_model_stop_reports_external_runtime_without_termination(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("AURORA_CONFIG_DIR", str(tmp_path / "config"))
+    app_module = importlib.import_module("aurora.cli.app")
+    model_module = importlib.import_module("aurora.cli.model")
+
+    class FakeService:
+        def stop_server(self, **kwargs):
+            _ = kwargs
+            return LifecycleStatus(
+                lifecycle_state="running",
+                ownership="external",
+                endpoint_url="http://127.0.0.1:8080",
+                port=8080,
+                model_id="Qwen3-8B-Q8_0",
+                pid=None,
+                process_group_id=None,
+                uptime_seconds=None,
+                ready=True,
+                message="Servidor externo detectado.",
+            )
+
+    monkeypatch.setattr(model_module, "ServerLifecycleService", lambda: FakeService(), raising=False)
+
+    result = RUNNER.invoke(app_module.app, ["model", "stop"], prog_name="aurora")
+
+    assert result.exit_code == 0
+    assert "servidor externo" in result.output.lower()
+    assert "nao foi encerrado" in result.output.lower()
+
+
+def test_model_status_supports_json_output(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("AURORA_CONFIG_DIR", str(tmp_path / "config"))
+    app_module = importlib.import_module("aurora.cli.app")
+    model_module = importlib.import_module("aurora.cli.model")
+
+    class FakeService:
+        def get_status(self):
+            return LifecycleStatus(
+                lifecycle_state="running",
+                ownership="managed",
+                endpoint_url="http://127.0.0.1:8080",
+                port=8080,
+                model_id="Qwen3-8B-Q8_0",
+                pid=1111,
+                process_group_id=1111,
+                uptime_seconds=30,
+                ready=True,
+            )
+
+    monkeypatch.setattr(model_module, "ServerLifecycleService", lambda: FakeService(), raising=False)
+
+    result = RUNNER.invoke(app_module.app, ["model", "status", "--json"], prog_name="aurora")
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["lifecycle_state"] == "running"
+    assert payload["ownership"] == "managed"
+    assert payload["pid"] == 1111
+    assert payload["ready"] is True
+
+
+def test_model_health_supports_json_output(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("AURORA_CONFIG_DIR", str(tmp_path / "config"))
+    app_module = importlib.import_module("aurora.cli.app")
+    model_module = importlib.import_module("aurora.cli.model")
+
+    class FakeService:
+        def check_health(self):
+            return LifecycleHealth(
+                ok=False,
+                endpoint_url="http://127.0.0.1:8080",
+                port=8080,
+                model_id="Qwen3-8B-Q8_0",
+                ownership="managed",
+                category="endpoint_offline",
+                message="offline",
+                recovery_commands=("aurora model start",),
+            )
+
+    monkeypatch.setattr(model_module, "ServerLifecycleService", lambda: FakeService(), raising=False)
+
+    result = RUNNER.invoke(app_module.app, ["model", "health", "--json"], prog_name="aurora")
+
+    assert result.exit_code == 1
+    payload = json.loads(result.output)
+    assert payload["ok"] is False
+    assert payload["category"] == "endpoint_offline"
+    assert payload["recovery_commands"] == ["aurora model start"]
