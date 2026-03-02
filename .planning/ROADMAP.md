@@ -17,7 +17,7 @@
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Local Runtime Baseline | 1/4 | In Progress | - |
+| 1. Local Runtime Baseline | 2/4 | In Progress | - |
 | 2. Vault Knowledge Base Lifecycle | 0/1 | Not started | - |
 | 3. Grounded Retrieval Experience | 0/1 | Not started | - |
 | 4. Long-Term Memory Fusion | 0/1 | Not started | - |
@@ -39,7 +39,7 @@
 - [x] `01-01-PLAN.md` - Bootstrap packaging, global CLI entrypoint, and command-surface placeholders. (`01-01-SUMMARY.md`, 2026-03-02)
 - [ ] `01-02-PLAN.md` - Implement `aurora model set` with HF source parsing, cache-aware downloads, and local-only guardrails.
 - [ ] `01-03-PLAN.md` - Deliver first-run wizard, runtime diagnostics, and actionable connectivity error handling.
-- [ ] `01-04-PLAN.md` - Create global settings persistence and local-only privacy policy foundation.
+- [x] `01-04-PLAN.md` - Create global settings persistence and local-only privacy policy foundation. (`01-04-SUMMARY.md`, 2026-03-02)
 
 ### Phase 2: Vault Knowledge Base Lifecycle
 **Goal**: User can build and maintain a scoped, current knowledge base from Obsidian markdown files.
@@ -129,4 +129,4 @@ Orphans: 0
 Duplicates: 0
 
 ---
-*Last updated: 2026-03-02 after executing plan 01-01*
+*Last updated: 2026-03-02 after executing plan 01-04*

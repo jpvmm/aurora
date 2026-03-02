@@ -44,10 +44,10 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Privacy & Safety
 
-- [ ] **PRIV-01**: User can run Aurora in local-only default mode without cloud API dependency.
+- [x] **PRIV-01**: User can run Aurora in local-only default mode without cloud API dependency.
 - [ ] **PRIV-02**: User can define include/exclude scopes for which vault paths are indexed.
 - [ ] **PRIV-03**: User logs avoid leaking sensitive note content by default.
-- [ ] **PRIV-04**: User has telemetry disabled by default.
+- [x] **PRIV-04**: User has telemetry disabled by default.
 
 ## v2 Requirements
 
@@ -106,10 +106,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | MOD-01 | Phase 1 | Pending |
 | MOD-02 | Phase 6 | Pending |
 | MOD-03 | Phase 1 | Pending |
-| PRIV-01 | Phase 1 | Pending |
+| PRIV-01 | Phase 1 | Complete |
 | PRIV-02 | Phase 2 | Pending |
 | PRIV-03 | Phase 6 | Pending |
-| PRIV-04 | Phase 1 | Pending |
+| PRIV-04 | Phase 1 | Complete |
 
 **Coverage:**
 - v1 requirements: 24 total
@@ -118,4 +118,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-03-01*
-*Last updated: 2026-03-01 during roadmap creation*
+*Last updated: 2026-03-02 after executing plan 01-04*
