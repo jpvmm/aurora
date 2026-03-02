@@ -42,6 +42,18 @@
 - [x] `01-04-PLAN.md` - Create global settings persistence and local-only privacy policy foundation. (`01-04-SUMMARY.md`, 2026-03-02)
 - [x] `01-05-PLAN.md` - Close verification regression by aligning root entrypoint smoke tests with implemented setup/config/doctor behavior. (`01-05-SUMMARY.md`, 2026-03-02)
 
+### Phase 01.1: llama.cpp server lifecycle via CLI (auto start/stop + health/status) (INSERTED)
+
+**Goal:** User can manage local `llama.cpp` server lifecycle directly from Aurora CLI with auto-start, explicit start/stop, and actionable runtime health/status diagnostics.
+**Requirements**: CLI-02, CLI-04, MOD-03, PRIV-01
+**Depends on:** Phase 1
+**Plans:** 3 plans
+
+Plans:
+- [ ] `01.1-01-PLAN.md` - Build global lifecycle state + cross-terminal lock foundation for managed runtime ownership.
+- [ ] `01.1-02-PLAN.md` - Implement runtime lifecycle service (background start/stop, external reuse, port fallback, crash restart, health/status payloads).
+- [ ] `01.1-03-PLAN.md` - Expose `aurora model start|stop|status|health`, JSON/text UX, model-change confirmations, and auto-start bootstrap integration.
+
 ### Phase 2: Vault Knowledge Base Lifecycle
 **Goal**: User can build and maintain a scoped, current knowledge base from Obsidian markdown files.
 **Depends on**: Phase 1
