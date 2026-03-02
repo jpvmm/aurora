@@ -1,0 +1,34 @@
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+from platformdirs import user_config_dir
+
+
+APP_NAME = "aurora"
+APP_AUTHOR = "aurora"
+SETTINGS_FILENAME = "settings.json"
+CONFIG_DIR_ENV = "AURORA_CONFIG_DIR"
+
+
+def get_config_dir() -> Path:
+    """Return the global per-user config directory for Aurora."""
+    override = os.getenv(CONFIG_DIR_ENV)
+    if override:
+        return Path(override).expanduser()
+
+    return Path(user_config_dir(APP_NAME, appauthor=APP_AUTHOR, roaming=False))
+
+
+def get_settings_path() -> Path:
+    """Return the absolute path for the persisted runtime settings file."""
+    return get_config_dir() / SETTINGS_FILENAME
+
+
+def ensure_config_dir() -> Path:
+    """Create the config directory when missing and return it."""
+    config_dir = get_config_dir()
+    config_dir.mkdir(parents=True, exist_ok=True)
+    return config_dir
+
