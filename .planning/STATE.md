@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-03-02T23:40:16.091Z"
+last_updated: "2026-03-02T23:52:13.783Z"
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 8
-  completed_plans: 6
+  completed_plans: 7
 ---
 
 # STATE: Aurora
@@ -16,13 +16,13 @@ progress:
 ## Project Reference
 
 - **Core value**: Total privacy with useful long-term memory over the vault, without external services.
-- **Current focus**: Phase 01.1 plan 01 completed; continue with runtime orchestration in plan 02.
+- **Current focus**: Phase 01.1 plan 02 completed; proceed to CLI command integration in plan 03.
 - **Depth mode**: comprehensive
 
 ## Current Position
 
 - **Current phase**: 01.1 - llama.cpp server lifecycle via CLI (auto start/stop + health/status)
-- **Current plan**: 01.1-02-PLAN.md pending execution (01.1-01 completed on 2026-03-02)
+- **Current plan**: 01.1-03-PLAN.md pending execution (01.1-02 completed on 2026-03-02)
 - **Status**: Phase 01.1 in progress
 - **Overall progress**: 1/7 phases complete
 - **Progress bar**: [#------] 14%
@@ -60,19 +60,22 @@ progress:
 - [Phase 01.1]: Server lifecycle state now uses strict schema validation with actionable pt-BR recovery commands.
 - [Phase 01.1]: Lifecycle transitions are serialized through a single global lock file with ownership tokens.
 - [Phase 01.1]: Stale lock recovery validates both PID and process-group liveness before reclaiming lock ownership.
+- [Phase 01.1]: Lifecycle startup owns endpoint conflict handling by iterating deterministic candidate ports and persisting the first successful endpoint.
+- [Phase 01.1]: Crash recovery is intentionally bounded to one automatic restart to avoid hidden restart loops.
+- [Phase 01.1]: Inference guard exposes a model bootstrap callback that can persist a model once and retry startup deterministically.
 
 ### TODOs
-- Execute plan `01.1-02` (runtime lifecycle service for managed/external ownership, health/status payloads, and restart behavior).
+- Execute plan `01.1-03` (CLI model lifecycle commands and integration with runtime auto-start guard).
 
 ### Blockers
 - None.
 
 ## Session Continuity
 
-- **Last action**: Executed `01.1-01-PLAN.md`, committed TDD task slices, and wrote `01.1-01-SUMMARY.md`.
+- **Last action**: Executed `01.1-02-PLAN.md`, committed TDD lifecycle slices, and wrote `01.1-02-SUMMARY.md`.
 - **Next command**: `/gsd:execute-phase 01.1`
-- **If resuming later**: Open `.planning/phases/01.1-llama-cpp-server-lifecycle-via-cli-auto-start-stop-health-status/01.1-01-SUMMARY.md`, then continue with `01.1-02-PLAN.md`.
+- **If resuming later**: Open `.planning/phases/01.1-llama-cpp-server-lifecycle-via-cli-auto-start-stop-health-status/01.1-02-SUMMARY.md`, then continue with `01.1-03-PLAN.md`.
 
 ---
 *Initialized: 2026-03-01*
-*Last updated: 2026-03-02 after executing plan 01.1-01*
+*Last updated: 2026-03-02 after executing plan 01.1-02*
