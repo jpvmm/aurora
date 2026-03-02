@@ -2,6 +2,8 @@
 
 import typer
 
+from aurora.cli.config import config_app
+from aurora.cli.doctor import doctor_app
 from aurora.cli.model import model_app
 from aurora.cli.setup import run_first_run_wizard, setup_app, should_run_first_run_wizard
 
@@ -20,28 +22,6 @@ def root(ctx: typer.Context) -> None:
         return
     if should_run_first_run_wizard():
         run_first_run_wizard()
-
-
-def _placeholder(group_name: str) -> None:
-    typer.echo(
-        f"O grupo '{group_name}' ainda não implementado nesta fase.",
-        err=True,
-    )
-    raise typer.Exit(code=1)
-
-
-config_app = typer.Typer(invoke_without_command=True, no_args_is_help=False)
-doctor_app = typer.Typer(invoke_without_command=True, no_args_is_help=False)
-
-
-@config_app.callback()
-def config_placeholder() -> None:
-    _placeholder("config")
-
-
-@doctor_app.callback()
-def doctor_placeholder() -> None:
-    _placeholder("doctor")
 
 
 app.add_typer(setup_app, name="setup")
