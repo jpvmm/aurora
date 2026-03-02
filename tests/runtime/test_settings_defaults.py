@@ -3,7 +3,12 @@ from __future__ import annotations
 import os
 
 from aurora.runtime.paths import get_config_dir, get_settings_path
-from aurora.runtime.settings import RuntimeSettings, load_settings, save_settings
+from aurora.runtime.settings import (
+    RuntimeSettings,
+    load_settings,
+    save_settings,
+    telemetry_defaults_env,
+)
 
 
 def test_settings_path_is_global_and_cwd_independent(tmp_path, monkeypatch):
@@ -61,3 +66,10 @@ def test_settings_save_and_load_round_trip(tmp_path, monkeypatch):
 
     reloaded = load_settings()
     assert reloaded == updated
+
+
+def test_telemetry_defaults_for_phase1_are_disabled():
+    assert telemetry_defaults_env() == {
+        "AGNO_TELEMETRY": "false",
+        "GRAPHITI_TELEMETRY_ENABLED": "false",
+    }
