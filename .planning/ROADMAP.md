@@ -17,7 +17,7 @@
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Local Runtime Baseline | 0/1 | Not started | - |
+| 1. Local Runtime Baseline | 0/4 | Not started | - |
 | 2. Vault Knowledge Base Lifecycle | 0/1 | Not started | - |
 | 3. Grounded Retrieval Experience | 0/1 | Not started | - |
 | 4. Long-Term Memory Fusion | 0/1 | Not started | - |
@@ -35,7 +35,11 @@
 2. User can configure local `llama.cpp` endpoint and model through CLI configuration.
 3. User receives actionable error messages when model endpoint is unavailable.
 4. Aurora runs in local-only mode by default with telemetry disabled.
-**Plans**: TBD
+**Plans**: 4 plans
+- [ ] `01-01-PLAN.md` - Bootstrap packaging, global CLI entrypoint, and command-surface placeholders.
+- [ ] `01-02-PLAN.md` - Implement `aurora model set` with HF source parsing, cache-aware downloads, and local-only guardrails.
+- [ ] `01-03-PLAN.md` - Deliver first-run wizard, runtime diagnostics, and actionable connectivity error handling.
+- [ ] `01-04-PLAN.md` - Create global settings persistence and local-only privacy policy foundation.
 
 ### Phase 2: Vault Knowledge Base Lifecycle
 **Goal**: User can build and maintain a scoped, current knowledge base from Obsidian markdown files.
@@ -125,4 +129,4 @@ Orphans: 0
 Duplicates: 0
 
 ---
-*Last updated: 2026-03-01 during roadmap creation*
+*Last updated: 2026-03-01 during Phase 1 planning*
