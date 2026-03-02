@@ -27,6 +27,7 @@ from aurora.runtime.settings import RuntimeSettings, load_settings, save_setting
 
 LifecycleState = Literal["running", "stopped", "crashed"]
 ExternalReuseDecision = Callable[["LifecycleStatus"], bool]
+ModelBootstrapCallback = Callable[[RuntimeSettings], str | RuntimeSettings | None]
 
 
 class ProcessLike(Protocol):
@@ -548,10 +549,31 @@ def ensure_runtime_for_inference(
     *,
     lifecycle_service: ServerLifecycleService | None = None,
     non_interactive: bool = False,
+    model_bootstrap_callback: ModelBootstrapCallback | None = None,
 ) -> EnsureRuntimeResult:
     service = lifecycle_service or ServerLifecycleService()
+    settings = service._settings_loader()
+    if not settings.model_id.strip():
+        settings = _bootstrap_model_if_missing(
+            service=service,
+            settings=settings,
+            callback=model_bootstrap_callback,
+        )
+
     status = service.start_server(non_interactive=non_interactive, reason="inference_auto_start")
     health = service.check_health()
+    if health.category == "model_missing":
+        settings = _bootstrap_model_if_missing(
+            service=service,
+            settings=service._settings_loader(),
+            callback=model_bootstrap_callback,
+        )
+        status = service.start_server(
+            non_interactive=non_interactive,
+            reason="inference_auto_start_retry",
+        )
+        health = service.check_health()
+
     if not health.ok:
         raise RuntimeDiagnosticError(
             category=health.category or "endpoint_offline",
@@ -560,6 +582,29 @@ def ensure_runtime_for_inference(
         )
     settings = service._settings_loader()
     return EnsureRuntimeResult(settings=settings, status=status, health=health)
+
+
+def _bootstrap_model_if_missing(
+    *,
+    service: ServerLifecycleService,
+    settings: RuntimeSettings,
+    callback: ModelBootstrapCallback | None,
+) -> RuntimeSettings:
+    if callback is None:
+        raise build_runtime_error("model_missing", model_id=settings.model_id or "<modelo>")
+
+    selected = callback(settings)
+    if isinstance(selected, RuntimeSettings):
+        updated_settings = selected
+    elif isinstance(selected, str):
+        model_id = selected.strip()
+        if not model_id:
+            raise build_runtime_error("model_missing", model_id="<modelo>")
+        updated_settings = settings.model_copy(update={"model_id": model_id})
+    else:
+        raise build_runtime_error("model_missing", model_id="<modelo>")
+
+    return service._settings_saver(updated_settings)
 
 
 def _build_launch_command(*, binary: str, settings: RuntimeSettings, port: int) -> list[str]:
@@ -646,6 +691,7 @@ __all__ = [
     "ExternalReuseDecision",
     "LifecycleHealth",
     "LifecycleStatus",
+    "ModelBootstrapCallback",
     "ServerLifecycleService",
     "ensure_runtime_for_inference",
 ]
