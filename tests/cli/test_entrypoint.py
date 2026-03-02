@@ -4,6 +4,7 @@ import importlib
 import tomllib
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 
@@ -26,3 +27,21 @@ def test_root_help_renders_stable_usage() -> None:
     assert result.exit_code == 0
     assert "Usage" in result.output
     assert "aurora" in result.output
+
+
+@pytest.mark.parametrize("command_group", ["setup", "config", "model", "doctor"])
+def test_phase_one_command_groups_are_listed_in_root_help(command_group: str) -> None:
+    app_module = importlib.import_module("aurora.cli.app")
+    result = RUNNER.invoke(app_module.app, ["--help"], prog_name="aurora")
+
+    assert result.exit_code == 0
+    assert command_group in result.output
+
+
+@pytest.mark.parametrize("command_group", ["setup", "config", "model", "doctor"])
+def test_phase_one_group_placeholders_are_explicit_in_pt_br(command_group: str) -> None:
+    app_module = importlib.import_module("aurora.cli.app")
+    result = RUNNER.invoke(app_module.app, [command_group], prog_name="aurora")
+
+    assert result.exit_code == 1
+    assert "ainda não implementado" in result.output.lower()
