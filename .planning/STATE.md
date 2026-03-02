@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-03-02T22:49:11Z"
+last_updated: "2026-03-02T23:40:16.091Z"
 progress:
-  total_phases: 1
+  total_phases: 2
   completed_phases: 1
-  total_plans: 5
-  completed_plans: 5
+  total_plans: 8
+  completed_plans: 6
 ---
 
 # STATE: Aurora
@@ -16,16 +16,16 @@ progress:
 ## Project Reference
 
 - **Core value**: Total privacy with useful long-term memory over the vault, without external services.
-- **Current focus**: Phase 01.1 urgent insertion planning and execution kickoff.
+- **Current focus**: Phase 01.1 plan 01 completed; continue with runtime orchestration in plan 02.
 - **Depth mode**: comprehensive
 
 ## Current Position
 
 - **Current phase**: 01.1 - llama.cpp server lifecycle via CLI (auto start/stop + health/status)
-- **Current plan**: awaiting phase 01.1 planning/execution
-- **Status**: Urgent inserted phase pending planning
-- **Overall progress**: 1/6 phases complete
-- **Progress bar**: [#-----] 17%
+- **Current plan**: 01.1-02-PLAN.md pending execution (01.1-01 completed on 2026-03-02)
+- **Status**: Phase 01.1 in progress
+- **Overall progress**: 1/7 phases complete
+- **Progress bar**: [#------] 14%
 
 ## Performance Metrics
 
@@ -57,19 +57,22 @@ progress:
 - [Phase 01-local-runtime-baseline]: Config/doctor outputs must always surface local-only and telemetry-off state while masking sensitive endpoint credentials.
 - [Phase 01-local-runtime-baseline]: Entrypoint smoke tests now validate implemented setup/config/doctor behavior instead of legacy placeholders.
 - [Phase 01-local-runtime-baseline]: Root aurora invocation now renders help when no setup wizard is required, preserving command discoverability.
+- [Phase 01.1]: Server lifecycle state now uses strict schema validation with actionable pt-BR recovery commands.
+- [Phase 01.1]: Lifecycle transitions are serialized through a single global lock file with ownership tokens.
+- [Phase 01.1]: Stale lock recovery validates both PID and process-group liveness before reclaiming lock ownership.
 
 ### TODOs
-- Plan and execute Phase 01.1 (`llama.cpp server lifecycle via CLI (auto start/stop + health/status)`), using captured context decisions.
+- Execute plan `01.1-02` (runtime lifecycle service for managed/external ownership, health/status payloads, and restart behavior).
 
 ### Blockers
 - None.
 
 ## Session Continuity
 
-- **Last action**: Captured Phase `01.1` context and wrote `01.1-CONTEXT.md`.
-- **Next command**: `/gsd:plan-phase 01.1`
-- **If resuming later**: Open `.planning/phases/01.1-llama-cpp-server-lifecycle-via-cli-auto-start-stop-health-status/01.1-CONTEXT.md` and continue with Phase 01.1 planning.
+- **Last action**: Executed `01.1-01-PLAN.md`, committed TDD task slices, and wrote `01.1-01-SUMMARY.md`.
+- **Next command**: `/gsd:execute-phase 01.1`
+- **If resuming later**: Open `.planning/phases/01.1-llama-cpp-server-lifecycle-via-cli-auto-start-stop-health-status/01.1-01-SUMMARY.md`, then continue with `01.1-02-PLAN.md`.
 
 ---
 *Initialized: 2026-03-01*
-*Last updated: 2026-03-02 after phase 01.1 context gathering*
+*Last updated: 2026-03-02 after executing plan 01.1-01*

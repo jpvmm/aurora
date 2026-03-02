@@ -47,10 +47,10 @@
 **Goal:** User can manage local `llama.cpp` server lifecycle directly from Aurora CLI with auto-start, explicit start/stop, and actionable runtime health/status diagnostics.
 **Requirements**: CLI-02, CLI-04, MOD-03, PRIV-01
 **Depends on:** Phase 1
-**Plans:** 3 plans
+**Plans:** 1/3 plans executed
 
 Plans:
-- [ ] `01.1-01-PLAN.md` - Build global lifecycle state + cross-terminal lock foundation for managed runtime ownership.
+- [x] `01.1-01-PLAN.md` - Build global lifecycle state + cross-terminal lock foundation for managed runtime ownership. (`01.1-01-SUMMARY.md`, 2026-03-02)
 - [ ] `01.1-02-PLAN.md` - Implement runtime lifecycle service (background start/stop, external reuse, port fallback, crash restart, health/status payloads).
 - [ ] `01.1-03-PLAN.md` - Expose `aurora model start|stop|status|health`, JSON/text UX, model-change confirmations, and auto-start bootstrap integration.
 
@@ -142,4 +142,4 @@ Orphans: 0
 Duplicates: 0
 
 ---
-*Last updated: 2026-03-02 after executing plan 01-05*
+*Last updated: 2026-03-02 after executing plan 01.1-01*
