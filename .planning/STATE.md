@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-last_updated: "2026-03-02T00:35:37Z"
+last_updated: "2026-03-02T00:45:33Z"
 progress:
   total_phases: 1
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 4
-  completed_plans: 3
+  completed_plans: 4
 ---
 
 # STATE: Aurora
@@ -21,18 +21,18 @@ progress:
 
 ## Current Position
 
-- **Current phase**: 1 - Local Runtime Baseline
-- **Current plan**: 02 completed out of sequence (pending: 03)
-- **Status**: In progress - finalizing remaining Phase 1 plan
-- **Overall progress**: 0/6 phases complete
-- **Progress bar**: [------] 0%
+- **Current phase**: 2 - Vault Knowledge Base Lifecycle
+- **Current plan**: awaiting phase 02 planning/execution
+- **Status**: Phase 1 complete - ready for next phase planning
+- **Overall progress**: 1/6 phases complete
+- **Progress bar**: [#-----] 17%
 
 ## Performance Metrics
 
 - **v1 requirements total**: 24
 - **Requirements mapped**: 24
 - **Coverage status**: 100% mapped
-- **Completed phases**: 0
+- **Completed phases**: 1
 - **Open blockers**: 0
 
 ## Accumulated Context
@@ -49,19 +49,22 @@ progress:
 - [Phase 01-local-runtime-baseline]: Lock HF source input to repo/model:arquivo.gguf with grouped pt-BR recovery errors.
 - [Phase 01-local-runtime-baseline]: Prefer Aurora global cache paths before any Hugging Face transfer in model setup flow.
 - [Phase 01-local-runtime-baseline]: Enforce local-only endpoint policy in aurora model set with explicit recovery command output.
+- [Phase 01-local-runtime-baseline]: Runtime validation now classifies endpoint/model/auth failures into actionable pt-BR categories with direct CLI recovery commands.
+- [Phase 01-local-runtime-baseline]: First-run onboarding is triggered by missing global settings and blocks completion until endpoint/model validation succeeds.
+- [Phase 01-local-runtime-baseline]: Config/doctor outputs must always surface local-only and telemetry-off state while masking sensitive endpoint credentials.
 
 ### TODOs
-- Execute `01-03-PLAN.md` (first-run wizard and runtime diagnostics).
+- Plan and execute Phase 2 (`Vault Knowledge Base Lifecycle`).
 
 ### Blockers
 - None.
 
 ## Session Continuity
 
-- **Last action**: Completed `01-02-PLAN.md` and created `01-02-SUMMARY.md`.
-- **Next command**: `/gsd:execute-phase 1` (continue with `01-03-PLAN.md`)
-- **If resuming later**: Open `.planning/phases/01-local-runtime-baseline/01-02-SUMMARY.md`, confirm pending plans in `.planning/ROADMAP.md`, then execute `01-03-PLAN.md`.
+- **Last action**: Completed `01-03-PLAN.md` and created `01-03-SUMMARY.md`.
+- **Next command**: `/gsd:plan-phase 2` (or start execution once phase 2 plan exists)
+- **If resuming later**: Review `.planning/phases/01-local-runtime-baseline/01-03-SUMMARY.md`, then continue with Phase 2 planning.
 
 ---
 *Initialized: 2026-03-01*
-*Last updated: 2026-03-02 after executing plan 01-02*
+*Last updated: 2026-03-02 after executing plan 01-03*

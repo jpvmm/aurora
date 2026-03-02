@@ -40,7 +40,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [x] **MOD-01**: User can configure local llama.cpp endpoint/model through CLI configuration.
 - [ ] **MOD-02**: User can switch between model profiles without changing application code.
-- [ ] **MOD-03**: User receives actionable configuration errors when model endpoint is unavailable.
+- [x] **MOD-03**: User receives actionable configuration errors when model endpoint is unavailable.
 
 ### Privacy & Safety
 
@@ -105,7 +105,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CLI-04 | Phase 5 | Pending |
 | MOD-01 | Phase 1 | Complete |
 | MOD-02 | Phase 6 | Pending |
-| MOD-03 | Phase 1 | Pending |
+| MOD-03 | Phase 1 | Complete |
 | PRIV-01 | Phase 1 | Complete |
 | PRIV-02 | Phase 2 | Pending |
 | PRIV-03 | Phase 6 | Pending |
@@ -118,4 +118,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-03-01*
-*Last updated: 2026-03-02 after executing plan 01-02*
+*Last updated: 2026-03-02 after executing plan 01-03*
