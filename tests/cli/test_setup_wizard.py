@@ -7,6 +7,7 @@ from typer.testing import CliRunner
 
 from aurora.runtime.errors import build_runtime_error
 from aurora.runtime.llama_client import RuntimeValidationResult
+from aurora.runtime.server_lifecycle import EnsureRuntimeResult, LifecycleHealth, LifecycleStatus
 from aurora.runtime.settings import RuntimeSettings
 
 
@@ -121,3 +122,159 @@ def test_root_command_runs_first_run_wizard_when_required(tmp_path: Path, monkey
 
     assert result.exit_code == 0
     assert called["value"] is True
+
+
+def test_setup_wizard_auto_start_path_uses_inference_guard(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("AURORA_CONFIG_DIR", str(tmp_path / "config"))
+    setup_module = importlib.import_module("aurora.cli.setup")
+    calls: list[dict[str, object]] = []
+
+    def fake_ensure_runtime_for_inference(**kwargs):
+        calls.append(kwargs)
+        return EnsureRuntimeResult(
+            settings=RuntimeSettings(),
+            status=LifecycleStatus(
+                lifecycle_state="running",
+                ownership="managed",
+                endpoint_url="http://127.0.0.1:8080",
+                port=8080,
+                model_id="Qwen3-8B-Q8_0",
+                pid=2000,
+                process_group_id=2000,
+                uptime_seconds=1,
+                ready=True,
+            ),
+            health=LifecycleHealth(
+                ok=True,
+                endpoint_url="http://127.0.0.1:8080",
+                port=8080,
+                model_id="Qwen3-8B-Q8_0",
+                ownership="managed",
+                category=None,
+                message="ok",
+            ),
+        )
+
+    monkeypatch.setattr(setup_module, "model_set_command", lambda **_: None)
+    monkeypatch.setattr(
+        setup_module,
+        "ensure_runtime_for_inference",
+        fake_ensure_runtime_for_inference,
+        raising=False,
+    )
+    monkeypatch.setattr(setup_module, "load_settings", lambda: RuntimeSettings())
+
+    result = RUNNER.invoke(
+        setup_module.setup_app,
+        [],
+        input="http://127.0.0.1:8080\nQwen3-8B-Q8_0\n\n",
+        prog_name="aurora setup",
+    )
+
+    assert result.exit_code == 0
+    assert len(calls) == 1
+    assert calls[0]["non_interactive"] is False
+    assert callable(calls[0]["model_bootstrap_callback"])
+
+
+def test_setup_wizard_bootstrap_missing_model_persists_and_continues(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("AURORA_CONFIG_DIR", str(tmp_path / "config"))
+    setup_module = importlib.import_module("aurora.cli.setup")
+    persisted: list[tuple[str | None, str | None, str | None]] = []
+
+    def fake_model_set_command(
+        endpoint: str | None = None,
+        model: str | None = None,
+        source: str | None = None,
+        **_: object,
+    ) -> None:
+        persisted.append((endpoint, model, source))
+
+    def fake_ensure_runtime_for_inference(**kwargs):
+        callback = kwargs["model_bootstrap_callback"]
+        callback(
+            RuntimeSettings(
+                endpoint_url="http://127.0.0.1:8080",
+                model_id="",
+                model_source="",
+                local_only=True,
+                telemetry_enabled=False,
+            )
+        )
+        return EnsureRuntimeResult(
+            settings=RuntimeSettings(model_id="Qwen3-8B-Q8_0"),
+            status=LifecycleStatus(
+                lifecycle_state="running",
+                ownership="managed",
+                endpoint_url="http://127.0.0.1:8080",
+                port=8080,
+                model_id="Qwen3-8B-Q8_0",
+                pid=2200,
+                process_group_id=2200,
+                uptime_seconds=1,
+                ready=True,
+            ),
+            health=LifecycleHealth(
+                ok=True,
+                endpoint_url="http://127.0.0.1:8080",
+                port=8080,
+                model_id="Qwen3-8B-Q8_0",
+                ownership="managed",
+                category=None,
+                message="ok",
+            ),
+        )
+
+    monkeypatch.setattr(setup_module, "model_set_command", fake_model_set_command)
+    monkeypatch.setattr(
+        setup_module,
+        "ensure_runtime_for_inference",
+        fake_ensure_runtime_for_inference,
+        raising=False,
+    )
+    monkeypatch.setattr(setup_module, "load_settings", lambda: RuntimeSettings())
+
+    result = RUNNER.invoke(
+        setup_module.setup_app,
+        [],
+        input="http://127.0.0.1:8080\nQwen3-8B-Q8_0\n\nQwen3-8B-Q8_0\n",
+        prog_name="aurora setup",
+    )
+
+    assert result.exit_code == 0
+    assert persisted[0] == ("http://127.0.0.1:8080", "Qwen3-8B-Q8_0", None)
+    assert persisted[1][1] == "Qwen3-8B-Q8_0"
+
+
+def test_setup_wizard_auto_start_failure_surfaces_recovery_commands(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("AURORA_CONFIG_DIR", str(tmp_path / "config"))
+    setup_module = importlib.import_module("aurora.cli.setup")
+
+    monkeypatch.setattr(setup_module, "model_set_command", lambda **_: None)
+    monkeypatch.setattr(
+        setup_module,
+        "ensure_runtime_for_inference",
+        lambda **_: (_ for _ in ()).throw(build_runtime_error("startup_timeout")),
+        raising=False,
+    )
+
+    result = RUNNER.invoke(
+        setup_module.setup_app,
+        [],
+        input="http://127.0.0.1:8080\nQwen3-8B-Q8_0\n\nn\n",
+        prog_name="aurora setup",
+    )
+
+    assert result.exit_code == 1
+    assert "[startup_timeout]" in result.output
+    assert "aurora model status" in result.output
+    assert "aurora model start" in result.output
