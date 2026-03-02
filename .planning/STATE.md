@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-last_updated: "2026-03-02T00:45:33Z"
+last_updated: "2026-03-02T01:06:13Z"
 progress:
   total_phases: 1
   completed_phases: 1
-  total_plans: 4
-  completed_plans: 4
+  total_plans: 5
+  completed_plans: 5
 ---
 
 # STATE: Aurora
@@ -16,7 +16,7 @@ progress:
 ## Project Reference
 
 - **Core value**: Total privacy with useful long-term memory over the vault, without external services.
-- **Current focus**: Phase 1 planning and execution kickoff.
+- **Current focus**: Phase 2 planning and execution kickoff.
 - **Depth mode**: comprehensive
 
 ## Current Position
@@ -52,6 +52,8 @@ progress:
 - [Phase 01-local-runtime-baseline]: Runtime validation now classifies endpoint/model/auth failures into actionable pt-BR categories with direct CLI recovery commands.
 - [Phase 01-local-runtime-baseline]: First-run onboarding is triggered by missing global settings and blocks completion until endpoint/model validation succeeds.
 - [Phase 01-local-runtime-baseline]: Config/doctor outputs must always surface local-only and telemetry-off state while masking sensitive endpoint credentials.
+- [Phase 01-local-runtime-baseline]: Entrypoint smoke tests now validate implemented setup/config/doctor behavior instead of legacy placeholders.
+- [Phase 01-local-runtime-baseline]: Root aurora invocation now renders help when no setup wizard is required, preserving command discoverability.
 
 ### TODOs
 - Plan and execute Phase 2 (`Vault Knowledge Base Lifecycle`).
@@ -61,10 +63,10 @@ progress:
 
 ## Session Continuity
 
-- **Last action**: Completed `01-03-PLAN.md` and created `01-03-SUMMARY.md`.
+- **Last action**: Completed `01-05-PLAN.md` and created `01-05-SUMMARY.md`.
 - **Next command**: `/gsd:plan-phase 2` (or start execution once phase 2 plan exists)
-- **If resuming later**: Review `.planning/phases/01-local-runtime-baseline/01-03-SUMMARY.md`, then continue with Phase 2 planning.
+- **If resuming later**: Review `.planning/phases/01-local-runtime-baseline/01-05-SUMMARY.md`, then continue with Phase 2 planning.
 
 ---
 *Initialized: 2026-03-01*
-*Last updated: 2026-03-02 after executing plan 01-03*
+*Last updated: 2026-03-02 after executing plan 01-05*
