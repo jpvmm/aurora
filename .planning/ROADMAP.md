@@ -6,7 +6,7 @@
 
 ## Phases
 
-- [x] **Phase 1: Local Runtime Baseline** - Local-only runtime, global CLI entrypoint, and model connectivity guardrails.
+- [ ] **Phase 1: Local Runtime Baseline** - Local-only runtime, global CLI entrypoint, and model connectivity guardrails.
 - [ ] **Phase 2: Vault Knowledge Base Lifecycle** - Ingest, scope, and maintain Obsidian knowledge state via CLI.
 - [ ] **Phase 3: Grounded Retrieval Experience** - Deliver trusted KB-grounded answers with citations and language policy.
 - [ ] **Phase 4: Long-Term Memory Fusion** - Persist and retrieve memory, then fuse it with KB evidence.
@@ -17,7 +17,7 @@
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Local Runtime Baseline | 4/4 | Complete | 2026-03-02 |
+| 1. Local Runtime Baseline | 4/5 | In progress | - |
 | 2. Vault Knowledge Base Lifecycle | 0/1 | Not started | - |
 | 3. Grounded Retrieval Experience | 0/1 | Not started | - |
 | 4. Long-Term Memory Fusion | 0/1 | Not started | - |
@@ -35,11 +35,12 @@
 2. User can configure local `llama.cpp` endpoint and model through CLI configuration.
 3. User receives actionable error messages when model endpoint is unavailable.
 4. Aurora runs in local-only mode by default with telemetry disabled.
-**Plans**: 4 plans
+**Plans**: 5 plans
 - [x] `01-01-PLAN.md` - Bootstrap packaging, global CLI entrypoint, and command-surface placeholders. (`01-01-SUMMARY.md`, 2026-03-02)
 - [x] `01-02-PLAN.md` - Implement `aurora model set` with HF source parsing, cache-aware downloads, and local-only guardrails. (`01-02-SUMMARY.md`, 2026-03-02)
 - [x] `01-03-PLAN.md` - Deliver first-run wizard, runtime diagnostics, and actionable connectivity error handling. (`01-03-SUMMARY.md`, 2026-03-02)
 - [x] `01-04-PLAN.md` - Create global settings persistence and local-only privacy policy foundation. (`01-04-SUMMARY.md`, 2026-03-02)
+- [ ] `01-05-PLAN.md` - Close verification regression by aligning root entrypoint smoke tests with implemented setup/config/doctor behavior. (gap closure)
 
 ### Phase 2: Vault Knowledge Base Lifecycle
 **Goal**: User can build and maintain a scoped, current knowledge base from Obsidian markdown files.
@@ -129,4 +130,4 @@ Orphans: 0
 Duplicates: 0
 
 ---
-*Last updated: 2026-03-02 after executing plan 01-03*
+*Last updated: 2026-03-02 after planning gap closure plan 01-05*
