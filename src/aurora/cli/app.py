@@ -22,6 +22,8 @@ def root(ctx: typer.Context) -> None:
         return
     if should_run_first_run_wizard():
         run_first_run_wizard()
+        return
+    typer.echo(ctx.get_help())
 
 
 app.add_typer(setup_app, name="setup")

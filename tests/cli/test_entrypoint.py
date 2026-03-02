@@ -32,6 +32,20 @@ def test_root_help_renders_stable_usage() -> None:
     assert "aurora" in result.output
 
 
+def test_root_no_args_shows_help_when_wizard_is_not_required(monkeypatch) -> None:
+    app_module = importlib.import_module("aurora.cli.app")
+    monkeypatch.setattr(app_module, "should_run_first_run_wizard", lambda: False)
+
+    result = RUNNER.invoke(app_module.app, [], prog_name="aurora")
+
+    assert result.exit_code == 0
+    assert "Usage" in result.output
+    assert "setup" in result.output
+    assert "config" in result.output
+    assert "model" in result.output
+    assert "doctor" in result.output
+
+
 @pytest.mark.parametrize("command_group", ["setup", "config", "model", "doctor"])
 def test_phase_one_command_groups_are_listed_in_root_help(command_group: str) -> None:
     app_module = importlib.import_module("aurora.cli.app")
