@@ -7,6 +7,7 @@ from typing import Callable
 import typer
 
 from aurora.privacy.policy import Phase1PolicyError
+from aurora.runtime.errors import build_runtime_error
 from aurora.runtime.model_download import (
     DownloadGuidanceError,
     DownloadRequest,
@@ -48,12 +49,25 @@ def model_set_command(
         "--yes",
         help="Aceita confirmação de download grande sem prompt interativo.",
     ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Forca restart quando runtime externo estiver ativo.",
+    ),
 ) -> None:
     """Persist global model runtime config with optional HF source resolution."""
     current = load_settings()
     model_source = source or current.model_source
     model_id = model or current.model_id
     endpoint_url = endpoint or current.endpoint_url
+    interactive = _is_interactive_terminal()
+    lifecycle_service = ServerLifecycleService()
+    requires_restart = bool(
+        model is not None
+        and model.strip()
+        and model.strip() != current.model_id.strip()
+    )
+    restart_after_save = False
 
     download_result: DownloadResult | None = None
 
@@ -99,9 +113,34 @@ def model_set_command(
         )
         raise typer.Exit(code=1)
 
+    if requires_restart:
+        status = lifecycle_service.get_status()
+        if status.lifecycle_state == "running":
+            if not _confirm_model_change_restart(
+                status=status,
+                interactive=interactive,
+                force_yes=yes,
+                force_restart=force,
+            ):
+                raise typer.Exit(code=1)
+
+            restart_after_save = True
+            try:
+                lifecycle_service.stop_server(force=True)
+                lifecycle_service.start_server(
+                    allow_external_reuse=False,
+                    non_interactive=not interactive,
+                    reason="model_change_restart",
+                )
+            except Exception as error:
+                _render_lifecycle_error(error, json_output=False)
+                raise typer.Exit(code=1) from error
+
     typer.echo("Configuração de modelo atualizada com sucesso.")
     if download_result is not None:
         typer.echo(f"Modelo disponível em: {download_result.local_path}")
+    if restart_after_save:
+        typer.echo("Runtime reiniciado para aplicar o novo modelo.")
     typer.echo("Próximo passo: execute `aurora doctor` para validar o runtime local.")
 
 
@@ -131,8 +170,8 @@ def model_start_command(
     interactive = _is_interactive_terminal()
     allow_external_reuse = True if yes else (False if force else None)
     decision_callback = None
-    if interactive and allow_external_reuse is None:
-        decision_callback = _confirm_external_reuse
+    if allow_external_reuse is None:
+        decision_callback = _confirm_external_reuse if interactive else _reject_external_reuse
 
     try:
         status = service.start_server(
@@ -312,6 +351,56 @@ def _confirm_external_reuse(status: LifecycleStatus) -> bool:
         f"{status.endpoint_url} para o modelo {status.model_id}."
     )
     return typer.confirm("Deseja reutilizar este runtime externo?", default=True)
+
+
+def _reject_external_reuse(_status: LifecycleStatus) -> bool:
+    raise build_runtime_error(
+        "confirmation_required",
+        detail=(
+            "Ambiente nao interativo exige override explicito. "
+            "Use `aurora model start --yes` para reutilizar runtime externo "
+            "ou `aurora model start --force` para iniciar runtime gerenciado."
+        ),
+    )
+
+
+def _confirm_model_change_restart(
+    *,
+    status: LifecycleStatus,
+    interactive: bool,
+    force_yes: bool,
+    force_restart: bool,
+) -> bool:
+    if status.ownership == "external" and not force_restart:
+        typer.echo(
+            "Runtime externo ativo detectado. Aurora nao encerra processo de terceiros sem `--force`.",
+            err=True,
+        )
+        typer.echo(
+            "Recuperacao: execute `aurora model set --model <modelo> --force` "
+            "ou pare o servidor externo manualmente.",
+            err=True,
+        )
+        return False
+
+    if force_yes or force_restart:
+        return True
+
+    if not interactive:
+        typer.echo(
+            "Runtime ativo detectado; confirme explicitamente o restart com `--yes`.",
+            err=True,
+        )
+        typer.echo(
+            "Recuperacao: aurora model set --model <modelo> --yes",
+            err=True,
+        )
+        return False
+
+    return typer.confirm(
+        "Runtime ativo detectado. Deseja reiniciar agora para aplicar o novo modelo?",
+        default=True,
+    )
 
 
 def _is_interactive_terminal() -> bool:

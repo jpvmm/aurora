@@ -10,6 +10,7 @@ RuntimeErrorCategory = Literal[
     "timeout",
     "model_missing",
     "invalid_token",
+    "confirmation_required",
     "binary_missing",
     "port_conflict_exhausted",
     "startup_timeout",
@@ -58,6 +59,12 @@ def build_runtime_error(
         commands = (
             f"aurora model set --model {expected_model}",
             "aurora doctor",
+        )
+    elif category == "confirmation_required":
+        message = "Acao bloqueada: confirmacao explicita obrigatoria para continuar."
+        commands = (
+            "aurora model start --yes",
+            "aurora model start --force",
         )
     elif category == "binary_missing":
         message = "Nao foi possivel iniciar o runtime local: binario `llama-server` nao encontrado."
