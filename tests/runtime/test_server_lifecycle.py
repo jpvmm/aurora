@@ -1,11 +1,8 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-
-import pytest
 
 from aurora.runtime.server_state import ServerLifecycleState
 from aurora.runtime.settings import RuntimeSettings
@@ -118,6 +115,7 @@ def test_start_server_launches_managed_ownership_and_persists_state() -> None:
         client_factory=lambda _endpoint: runtime_client,
         launch_process=_launch,
         is_pid_alive=lambda _pid: True,
+        which_fn=lambda _name: "/usr/local/bin/llama-server",
         now_fn=lambda: datetime(2026, 3, 2, 22, 0, tzinfo=UTC),
     )
 
@@ -159,6 +157,7 @@ def test_start_server_reuses_external_ownership_when_callback_accepts() -> None:
         client_factory=lambda _endpoint: FakeRuntimeClient(ready=True),
         launch_process=lambda command, **kwargs: launches.append(command),  # pragma: no cover
         is_pid_alive=lambda _pid: True,
+        which_fn=lambda _name: "/usr/local/bin/llama-server",
         now_fn=lambda: datetime(2026, 3, 2, 22, 0, tzinfo=UTC),
     )
 
@@ -205,6 +204,7 @@ def test_stop_server_only_stops_managed_ownership_by_default() -> None:
         launch_process=lambda command, **kwargs: FakeProcess(),
         is_pid_alive=lambda _pid: True,
         kill_process=lambda pid, *, is_group: kill_calls.append((pid, is_group)),
+        which_fn=lambda _name: "/usr/local/bin/llama-server",
         now_fn=lambda: datetime(2026, 3, 2, 22, 0, tzinfo=UTC),
     )
 
@@ -250,6 +250,7 @@ def test_stop_server_terminates_managed_ownership_process_and_clears_state() -> 
         launch_process=lambda command, **kwargs: FakeProcess(),
         is_pid_alive=lambda _pid: True,
         kill_process=lambda pid, *, is_group: kill_calls.append((pid, is_group)),
+        which_fn=lambda _name: "/usr/local/bin/llama-server",
         now_fn=lambda: datetime(2026, 3, 2, 22, 0, tzinfo=UTC),
     )
 
@@ -282,6 +283,7 @@ def test_get_status_reports_runtime_payload_for_ownership_mode() -> None:
         client_factory=lambda _endpoint: FakeRuntimeClient(ready=True),
         launch_process=lambda command, **kwargs: FakeProcess(),
         is_pid_alive=lambda _pid: True,
+        which_fn=lambda _name: "/usr/local/bin/llama-server",
         now_fn=lambda: datetime.now(UTC),
     )
 
