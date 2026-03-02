@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-last_updated: "2026-03-02T00:27:40Z"
+last_updated: "2026-03-02T00:35:37Z"
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 4
-  completed_plans: 2
+  completed_plans: 3
 ---
 
 # STATE: Aurora
@@ -22,8 +22,8 @@ progress:
 ## Current Position
 
 - **Current phase**: 1 - Local Runtime Baseline
-- **Current plan**: 04 completed out of sequence (pending: 02, 03)
-- **Status**: In progress - finishing remaining Phase 1 plans
+- **Current plan**: 02 completed out of sequence (pending: 03)
+- **Status**: In progress - finalizing remaining Phase 1 plan
 - **Overall progress**: 0/6 phases complete
 - **Progress bar**: [------] 0%
 
@@ -46,9 +46,11 @@ progress:
 - [Phase 01-local-runtime-baseline]: Persist runtime settings globally per-user with platformdirs and deterministic JSON serialization.
 - [Phase 01-local-runtime-baseline]: Validate local-only endpoint policy at settings load/save boundaries to block non-loopback URLs before runtime calls.
 - [Phase 01-local-runtime-baseline]: Expose AGNO_TELEMETRY and GRAPHITI_TELEMETRY_ENABLED defaults as false via settings helper for future config visibility.
+- [Phase 01-local-runtime-baseline]: Lock HF source input to repo/model:arquivo.gguf with grouped pt-BR recovery errors.
+- [Phase 01-local-runtime-baseline]: Prefer Aurora global cache paths before any Hugging Face transfer in model setup flow.
+- [Phase 01-local-runtime-baseline]: Enforce local-only endpoint policy in aurora model set with explicit recovery command output.
 
 ### TODOs
-- Execute `01-02-PLAN.md` (model set, HF source parsing, local-only guardrails).
 - Execute `01-03-PLAN.md` (first-run wizard and runtime diagnostics).
 
 ### Blockers
@@ -56,10 +58,10 @@ progress:
 
 ## Session Continuity
 
-- **Last action**: Completed `01-04-PLAN.md` and created `01-04-SUMMARY.md`.
-- **Next command**: `/gsd:execute-phase 1` (continue with `01-02-PLAN.md` then `01-03-PLAN.md`)
-- **If resuming later**: Open `.planning/phases/01-local-runtime-baseline/01-04-SUMMARY.md`, confirm pending plans in `.planning/ROADMAP.md`, then execute `01-02-PLAN.md`.
+- **Last action**: Completed `01-02-PLAN.md` and created `01-02-SUMMARY.md`.
+- **Next command**: `/gsd:execute-phase 1` (continue with `01-03-PLAN.md`)
+- **If resuming later**: Open `.planning/phases/01-local-runtime-baseline/01-02-SUMMARY.md`, confirm pending plans in `.planning/ROADMAP.md`, then execute `01-03-PLAN.md`.
 
 ---
 *Initialized: 2026-03-01*
-*Last updated: 2026-03-02 after executing plan 01-04*
+*Last updated: 2026-03-02 after executing plan 01-02*
