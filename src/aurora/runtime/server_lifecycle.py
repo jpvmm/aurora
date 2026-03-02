@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import errno
 import os
 import shutil
 import signal
@@ -14,7 +15,7 @@ from aurora.runtime.errors import RuntimeDiagnosticError, build_runtime_error, c
 from aurora.runtime.llama_client import LlamaRuntimeClient
 from aurora.runtime.model_registry import resolve_cached_model
 from aurora.runtime.model_source import ModelSourceValidationError, parse_hf_target
-from aurora.runtime.server_lock import acquire_lifecycle_lock
+from aurora.runtime.server_lock import LifecycleLockError, acquire_lifecycle_lock
 from aurora.runtime.server_state import (
     ServerLifecycleState,
     ServerOwnership,
@@ -45,7 +46,6 @@ LockAcquirerFn = Callable[..., object]
 NowFn = Callable[[], datetime]
 SleepFn = Callable[[float], None]
 PidAliveFn = Callable[[int], bool]
-KillProcessFn = Callable[[int], None]
 WhichFn = Callable[[str], str | None]
 
 
@@ -61,6 +61,8 @@ class LifecycleStatus:
     uptime_seconds: int | None
     ready: bool
     message: str | None = None
+    error_category: str | None = None
+    recovery_commands: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -74,6 +76,8 @@ class LifecycleStatus:
             "uptime_seconds": self.uptime_seconds,
             "ready": self.ready,
             "message": self.message,
+            "error_category": self.error_category,
+            "recovery_commands": list(self.recovery_commands),
         }
 
 
@@ -130,6 +134,8 @@ class ServerLifecycleService:
         startup_timeout_seconds: float = 20.0,
         startup_probe_interval_seconds: float = 0.2,
         lock_timeout_seconds: float = 5.0,
+        max_port_attempts: int = 5,
+        restart_limit: int = 1,
     ) -> None:
         self._settings_loader = settings_loader
         self._settings_saver = settings_saver
@@ -149,6 +155,8 @@ class ServerLifecycleService:
         self._startup_timeout_seconds = startup_timeout_seconds
         self._startup_probe_interval_seconds = startup_probe_interval_seconds
         self._lock_timeout_seconds = lock_timeout_seconds
+        self._max_port_attempts = max_port_attempts
+        self._restart_limit = restart_limit
 
     def start_server(
         self,
@@ -158,69 +166,77 @@ class ServerLifecycleService:
         non_interactive: bool = False,
         reason: str = "manual_start",
     ) -> LifecycleStatus:
-        with self._acquire_lock():
-            settings = self._settings_loader()
-            parsed = _parse_endpoint(settings.endpoint_url)
-            existing = self._state_loader()
-            if existing is not None and existing.ownership == "managed" and existing.pid:
-                if self._is_pid_alive(existing.pid):
-                    return self._build_status(existing, settings=settings)
+        try:
+            with self._acquire_lock():
+                settings = self._settings_loader()
+                parsed = _parse_endpoint(settings.endpoint_url)
+                existing = self._state_loader()
+                if existing is not None and existing.ownership == "managed" and existing.pid:
+                    if self._is_pid_alive(existing.pid):
+                        return self._build_status(existing, settings=settings)
 
-            endpoint_ready = self._is_runtime_ready(
-                endpoint_url=settings.endpoint_url,
-                model_id=settings.model_id,
-            )
-            if endpoint_ready:
-                decision = self._resolve_external_reuse_decision(
-                    allow_external_reuse=allow_external_reuse,
-                    external_reuse_decision=external_reuse_decision,
-                    non_interactive=non_interactive,
-                    settings=settings,
-                    parsed=parsed,
+                endpoint_ready = self._is_runtime_ready(
+                    endpoint_url=settings.endpoint_url,
+                    model_id=settings.model_id,
                 )
-                if decision:
-                    state = ServerLifecycleState(
-                        ownership="external",
-                        pid=None,
-                        process_group_id=None,
-                        endpoint_url=settings.endpoint_url,
-                        port=parsed.port,
-                        model_id=settings.model_id,
-                        started_at=self._now_iso(),
-                        last_transition_reason="external_reused",
+                if endpoint_ready:
+                    decision = self._resolve_external_reuse_decision(
+                        allow_external_reuse=allow_external_reuse,
+                        external_reuse_decision=external_reuse_decision,
+                        non_interactive=non_interactive,
+                        settings=settings,
+                        parsed=parsed,
                     )
-                    self._state_saver(state)
-                    return self._build_status(state, settings=settings, ready=True)
+                    if decision:
+                        state = ServerLifecycleState(
+                            ownership="external",
+                            pid=None,
+                            process_group_id=None,
+                            endpoint_url=settings.endpoint_url,
+                            port=parsed.port,
+                            model_id=settings.model_id,
+                            started_at=self._now_iso(),
+                            last_transition_reason="external_reused",
+                        )
+                        self._state_saver(state)
+                        return self._build_status(state, settings=settings, ready=True)
 
-            process = self._launch_managed_server(settings=settings, parsed=parsed)
-            managed_state = ServerLifecycleState(
-                ownership="managed",
-                pid=process.pid,
-                process_group_id=_process_group_id(process.pid),
-                endpoint_url=settings.endpoint_url,
-                port=parsed.port,
-                model_id=settings.model_id,
-                started_at=self._now_iso(),
-                last_transition_reason=reason,
-            )
-            self._state_saver(managed_state)
-            return self._build_status(managed_state, settings=settings, ready=True)
+                process, active_settings, active_endpoint = self._launch_managed_with_fallback(
+                    settings=settings
+                )
+                managed_state = ServerLifecycleState(
+                    ownership="managed",
+                    pid=process.pid,
+                    process_group_id=_process_group_id(process.pid),
+                    endpoint_url=active_settings.endpoint_url,
+                    port=active_endpoint.port,
+                    model_id=active_settings.model_id,
+                    started_at=self._now_iso(),
+                    last_transition_reason=reason,
+                )
+                self._state_saver(managed_state)
+                return self._build_status(managed_state, settings=active_settings, ready=True)
+        except LifecycleLockError as error:
+            raise build_runtime_error("lock_timeout", detail=str(error)) from error
 
     def stop_server(self, *, force: bool = False) -> LifecycleStatus:
-        with self._acquire_lock():
-            settings = self._settings_loader()
-            state = self._state_loader()
-            if state is None:
+        try:
+            with self._acquire_lock():
+                settings = self._settings_loader()
+                state = self._state_loader()
+                if state is None:
+                    return self._build_stopped_status(settings=settings)
+
+                if state.ownership == "external" and not force:
+                    return self._build_status(state, settings=settings)
+
+                target = state.process_group_id if state.process_group_id is not None else state.pid
+                if target is not None:
+                    self._kill_process(target, is_group=state.process_group_id is not None)
+                self._state_clearer()
                 return self._build_stopped_status(settings=settings)
-
-            if state.ownership == "external" and not force:
-                return self._build_status(state, settings=settings)
-
-            target = state.process_group_id if state.process_group_id is not None else state.pid
-            if target is not None:
-                self._kill_process(target, is_group=state.process_group_id is not None)
-            self._state_clearer()
-            return self._build_stopped_status(settings=settings)
+        except LifecycleLockError as error:
+            raise build_runtime_error("lock_timeout", detail=str(error)) from error
 
     def get_status(self) -> LifecycleStatus:
         settings = self._settings_loader()
@@ -229,17 +245,53 @@ class ServerLifecycleService:
             return self._build_stopped_status(settings=settings)
 
         if state.ownership == "managed" and state.pid is not None and not self._is_pid_alive(state.pid):
+            restarted = self._attempt_single_restart(state=state, settings=settings)
+            if restarted is not None:
+                new_state, settings = restarted
+                return self._build_status(new_state, settings=settings, ready=True)
+
+            category = "crash_restart_failed"
+            error = build_runtime_error(
+                category,
+                detail="Reinicio automatico indisponivel ou falhou.",
+            )
+            failed_state = ServerLifecycleState(
+                ownership="managed",
+                pid=None,
+                process_group_id=None,
+                endpoint_url=state.endpoint_url,
+                port=state.port,
+                model_id=state.model_id,
+                started_at=state.started_at,
+                last_transition_reason="crash_restart_failed",
+                crash_count=state.crash_count + 1,
+                restart_count=min(state.restart_count + 1, self._restart_limit),
+            )
+            self._state_saver(failed_state)
             return self._build_status(
-                state,
+                failed_state,
                 settings=settings,
                 ready=False,
                 lifecycle_state="crashed",
-                message="Servidor gerenciado foi encerrado inesperadamente.",
+                message=error.message,
+                error_category=error.category,
+                recovery_commands=error.recovery_commands,
             )
         return self._build_status(state, settings=settings)
 
     def check_health(self) -> LifecycleHealth:
         status = self.get_status()
+        if status.lifecycle_state == "crashed" and status.error_category is not None:
+            return LifecycleHealth(
+                ok=False,
+                endpoint_url=status.endpoint_url,
+                port=status.port,
+                model_id=status.model_id,
+                ownership=status.ownership,
+                category=status.error_category,
+                message=status.message or "Runtime em estado de falha.",
+                recovery_commands=status.recovery_commands,
+            )
         if status.lifecycle_state == "stopped":
             error = build_runtime_error("endpoint_offline")
             return LifecycleHealth(
@@ -291,35 +343,108 @@ class ServerLifecycleService:
             recovery_commands=(),
         )
 
-    def _launch_managed_server(self, *, settings: RuntimeSettings, parsed: SplitResult) -> ProcessLike:
+    def _launch_managed_with_fallback(
+        self,
+        *,
+        settings: RuntimeSettings,
+    ) -> tuple[ProcessLike, RuntimeSettings, SplitResult]:
+        parsed = _parse_endpoint(settings.endpoint_url)
+        base_port = parsed.port
+        last_conflict: OSError | None = None
+
+        for offset in range(self._max_port_attempts):
+            port = base_port + offset
+            candidate_endpoint_url = _endpoint_with_port(settings.endpoint_url, port=port)
+            candidate_settings = settings.model_copy(update={"endpoint_url": candidate_endpoint_url})
+            candidate_endpoint = _parse_endpoint(candidate_endpoint_url)
+            try:
+                process = self._launch_managed_server_once(
+                    settings=candidate_settings,
+                    parsed=candidate_endpoint,
+                )
+            except OSError as error:
+                if _is_port_conflict(error):
+                    last_conflict = error
+                    continue
+                raise
+
+            if candidate_settings.endpoint_url != settings.endpoint_url:
+                settings = self._settings_saver(candidate_settings)
+            else:
+                settings = candidate_settings
+            return process, settings, candidate_endpoint
+
+        raise build_runtime_error(
+            "port_conflict_exhausted",
+            detail=str(last_conflict) if last_conflict is not None else None,
+        )
+
+    def _launch_managed_server_once(self, *, settings: RuntimeSettings, parsed: SplitResult) -> ProcessLike:
         binary = self._which_fn("llama-server")
         if not binary:
             raise build_runtime_error(
-                "endpoint_offline",
+                "binary_missing",
                 detail="Binario `llama-server` nao encontrado no PATH.",
             )
 
         command = _build_launch_command(binary=binary, settings=settings, port=parsed.port)
-        process = self._launch_process(
-            tuple(command),
-            start_new_session=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            text=True,
-        )
+        try:
+            process = self._launch_process(
+                tuple(command),
+                start_new_session=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                text=True,
+            )
+        except OSError as error:
+            if _is_port_conflict(error):
+                raise
+            raise build_runtime_error("startup_timeout", detail=str(error)) from error
         deadline = time.monotonic() + self._startup_timeout_seconds
 
         while time.monotonic() < deadline:
             if process.poll() is not None:
                 raise build_runtime_error(
-                    "endpoint_offline",
+                    "startup_timeout",
                     detail="Processo `llama-server` encerrou durante o startup.",
                 )
             if self._is_runtime_ready(endpoint_url=settings.endpoint_url, model_id=settings.model_id):
                 return process
             self._sleep_fn(self._startup_probe_interval_seconds)
 
-        raise build_runtime_error("timeout", detail="Timeout aguardando readiness do llama.cpp.")
+        raise build_runtime_error("startup_timeout", detail="Timeout aguardando readiness do llama.cpp.")
+
+    def _attempt_single_restart(
+        self,
+        *,
+        state: ServerLifecycleState,
+        settings: RuntimeSettings,
+    ) -> tuple[ServerLifecycleState, RuntimeSettings] | None:
+        if state.restart_count >= self._restart_limit:
+            return None
+
+        restart_settings = settings.model_copy(update={"endpoint_url": state.endpoint_url})
+        try:
+            process, active_settings, active_endpoint = self._launch_managed_with_fallback(
+                settings=restart_settings
+            )
+        except Exception:
+            return None
+
+        restarted_state = ServerLifecycleState(
+            ownership="managed",
+            pid=process.pid,
+            process_group_id=_process_group_id(process.pid),
+            endpoint_url=active_settings.endpoint_url,
+            port=active_endpoint.port,
+            model_id=active_settings.model_id,
+            started_at=self._now_iso(),
+            last_transition_reason="auto_restart_after_crash",
+            crash_count=state.crash_count + 1,
+            restart_count=state.restart_count + 1,
+        )
+        self._state_saver(restarted_state)
+        return restarted_state, active_settings
 
     def _resolve_external_reuse_decision(
         self,
@@ -373,6 +498,8 @@ class ServerLifecycleService:
         ready: bool | None = None,
         lifecycle_state: LifecycleState = "running",
         message: str | None = None,
+        error_category: str | None = None,
+        recovery_commands: tuple[str, ...] = (),
     ) -> LifecycleStatus:
         if ready is None:
             ready = self._is_runtime_ready(
@@ -394,6 +521,8 @@ class ServerLifecycleService:
             ),
             ready=ready,
             message=message,
+            error_category=error_category,
+            recovery_commands=recovery_commands,
         )
 
     def _is_runtime_ready(self, *, endpoint_url: str, model_id: str) -> bool:
@@ -454,6 +583,15 @@ def _resolve_model_path(settings: RuntimeSettings) -> str | None:
     return str(resolution.local_path)
 
 
+def _endpoint_with_port(endpoint_url: str, *, port: int) -> str:
+    parsed = urlsplit(endpoint_url)
+    hostname = parsed.hostname
+    if not parsed.scheme or not hostname:
+        raise ValueError("endpoint_url invalido para lifecycle.")
+    netloc = hostname if port in {80, 443} else f"{hostname}:{port}"
+    return f"{parsed.scheme}://{netloc}{parsed.path or ''}"
+
+
 def _parse_endpoint(endpoint_url: str) -> SplitResult:
     parsed = urlsplit(endpoint_url)
     if not parsed.scheme or not parsed.hostname:
@@ -495,6 +633,12 @@ def _uptime_seconds(*, started_at: str, now: datetime) -> int | None:
         return None
     delta = now.astimezone(UTC) - started
     return max(int(delta.total_seconds()), 0)
+
+
+def _is_port_conflict(error: OSError) -> bool:
+    if error.errno in {errno.EADDRINUSE, 48, 98}:
+        return True
+    return "address already in use" in str(error).lower()
 
 
 __all__ = [

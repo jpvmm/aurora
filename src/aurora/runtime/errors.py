@@ -10,6 +10,11 @@ RuntimeErrorCategory = Literal[
     "timeout",
     "model_missing",
     "invalid_token",
+    "binary_missing",
+    "port_conflict_exhausted",
+    "startup_timeout",
+    "lock_timeout",
+    "crash_restart_failed",
 ]
 
 
@@ -53,6 +58,36 @@ def build_runtime_error(
         commands = (
             f"aurora model set --model {expected_model}",
             "aurora doctor",
+        )
+    elif category == "binary_missing":
+        message = "Nao foi possivel iniciar o runtime local: binario `llama-server` nao encontrado."
+        commands = (
+            "aurora doctor",
+            "aurora model start",
+        )
+    elif category == "port_conflict_exhausted":
+        message = "Nao foi possivel iniciar o runtime: portas candidatas estao ocupadas."
+        commands = (
+            "aurora model set --endpoint http://127.0.0.1:8081",
+            "aurora model start",
+        )
+    elif category == "startup_timeout":
+        message = "Timeout ao aguardar inicializacao do llama.cpp."
+        commands = (
+            "aurora model status",
+            "aurora model start",
+        )
+    elif category == "lock_timeout":
+        message = "Nao foi possivel obter lock de ciclo de vida para start/stop."
+        commands = (
+            "aurora model status",
+            "aurora model start",
+        )
+    elif category == "crash_restart_failed":
+        message = "Falha ao recuperar runtime gerenciado apos queda inesperada."
+        commands = (
+            "aurora model status",
+            "aurora model start",
         )
     else:
         message = "Falha de autenticacao no endpoint local (token invalido ou ausente)."
