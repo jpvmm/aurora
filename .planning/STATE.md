@@ -1,3 +1,16 @@
+---
+gsd_state_version: 1.0
+milestone: v1.0
+milestone_name: milestone
+status: in_progress
+last_updated: "2026-03-02T00:21:40.828Z"
+progress:
+  total_phases: 1
+  completed_phases: 0
+  total_plans: 4
+  completed_plans: 1
+---
+
 # STATE: Aurora
 
 ## Project Reference
@@ -9,8 +22,8 @@
 ## Current Position
 
 - **Current phase**: 1 - Local Runtime Baseline
-- **Current plan**: Not created
-- **Status**: Ready for `/gsd:plan-phase 1`
+- **Current plan**: 01 completed (next: 02)
+- **Status**: In progress - executing Phase 1 plans
 - **Overall progress**: 0/6 phases complete
 - **Progress bar**: [------] 0%
 
@@ -28,21 +41,23 @@
 - Roadmap derived from six natural capability boundaries: runtime baseline, KB lifecycle, retrieval, memory fusion, operational commands, and observability hardening.
 - Requirement mapping enforced as one-to-one phase ownership for all v1 IDs.
 - Success criteria defined as observable user behaviors for downstream planning and verification.
+- [Phase 01-local-runtime-baseline]: Expose setup/config/model/doctor as root placeholders with explicit pt-BR not-implemented errors
+- [Phase 01-local-runtime-baseline]: Lock aurora global CLI entrypoint through project.scripts and enforce with smoke tests
 
 ### TODOs
-- Create executable plan for Phase 1.
-- Validate plan against Phase 1 success criteria before execution.
-- Start implementation with local-only runtime guardrails first.
+- Execute `01-02-PLAN.md` (model set, HF source parsing, local-only guardrails).
+- Execute `01-03-PLAN.md` (first-run wizard and runtime diagnostics).
+- Execute `01-04-PLAN.md` (global settings persistence and privacy defaults).
 
 ### Blockers
 - None.
 
 ## Session Continuity
 
-- **Last action**: Captured Phase 1 context and wrote `01-CONTEXT.md`.
-- **Next command**: `/gsd:plan-phase 1`
-- **If resuming later**: Open `.planning/phases/01-local-runtime-baseline/01-CONTEXT.md`, confirm phase status in `.planning/ROADMAP.md`, then continue with Phase 1 planning.
+- **Last action**: Completed `01-01-PLAN.md` and created `01-01-SUMMARY.md`.
+- **Next command**: `/gsd:execute-phase 1` (continue with `01-02-PLAN.md`)
+- **If resuming later**: Open `.planning/phases/01-local-runtime-baseline/01-01-SUMMARY.md`, confirm pending plans in `.planning/ROADMAP.md`, then execute `01-02-PLAN.md`.
 
 ---
 *Initialized: 2026-03-01*
-*Last updated: 2026-03-01 after phase 1 context gathering*
+*Last updated: 2026-03-02 after executing plan 01-01*
