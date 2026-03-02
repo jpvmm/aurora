@@ -6,7 +6,6 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 from aurora.runtime.errors import build_runtime_error
-from aurora.runtime.llama_client import RuntimeValidationResult
 from aurora.runtime.server_lifecycle import EnsureRuntimeResult, LifecycleHealth, LifecycleStatus
 from aurora.runtime.settings import RuntimeSettings
 
@@ -21,12 +20,30 @@ def test_setup_wizard_retries_until_runtime_validation_passes(
     monkeypatch.setenv("AURORA_CONFIG_DIR", str(tmp_path / "config"))
     setup_module = importlib.import_module("aurora.cli.setup")
 
-    validations = [
+    validations: list[Exception | EnsureRuntimeResult] = [
         build_runtime_error("timeout", detail="Servidor ainda carregando"),
-        RuntimeValidationResult(
-            endpoint_state="ready",
-            model_id="Qwen3-8B-Q8_0",
-            available_models=("Qwen3-8B-Q8_0",),
+        EnsureRuntimeResult(
+            settings=RuntimeSettings(),
+            status=LifecycleStatus(
+                lifecycle_state="running",
+                ownership="managed",
+                endpoint_url="http://127.0.0.1:8080",
+                port=8080,
+                model_id="Qwen3-8B-Q8_0",
+                pid=2100,
+                process_group_id=2100,
+                uptime_seconds=2,
+                ready=True,
+            ),
+            health=LifecycleHealth(
+                ok=True,
+                endpoint_url="http://127.0.0.1:8080",
+                port=8080,
+                model_id="Qwen3-8B-Q8_0",
+                ownership="managed",
+                category=None,
+                message="ok",
+            ),
         ),
     ]
     persisted: list[tuple[str | None, str | None, str | None]] = []
@@ -39,14 +56,19 @@ def test_setup_wizard_retries_until_runtime_validation_passes(
     ) -> None:
         persisted.append((endpoint, model, source))
 
-    def fake_validate_runtime(endpoint_url: str, model_id: str):
+    def fake_ensure_runtime_for_inference(**_: object):
         value = validations.pop(0)
         if isinstance(value, Exception):
             raise value
         return value
 
     monkeypatch.setattr(setup_module, "model_set_command", fake_model_set_command)
-    monkeypatch.setattr(setup_module, "validate_runtime", fake_validate_runtime)
+    monkeypatch.setattr(
+        setup_module,
+        "ensure_runtime_for_inference",
+        fake_ensure_runtime_for_inference,
+        raising=False,
+    )
     monkeypatch.setattr(
         setup_module,
         "load_settings",
@@ -91,8 +113,9 @@ def test_setup_wizard_blocks_completion_when_user_aborts_after_failure(
     monkeypatch.setattr(setup_module, "model_set_command", lambda **_: None)
     monkeypatch.setattr(
         setup_module,
-        "validate_runtime",
-        lambda *_: (_ for _ in ()).throw(build_runtime_error("endpoint_offline")),
+        "ensure_runtime_for_inference",
+        lambda **_: (_ for _ in ()).throw(build_runtime_error("endpoint_offline")),
+        raising=False,
     )
 
     result = RUNNER.invoke(

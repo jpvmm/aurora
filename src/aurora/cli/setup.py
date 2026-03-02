@@ -3,9 +3,9 @@ from __future__ import annotations
 import typer
 
 from aurora.cli.model import model_set_command
-from aurora.runtime.errors import RuntimeDiagnosticError
-from aurora.runtime.llama_client import validate_runtime
+from aurora.runtime.errors import RuntimeDiagnosticError, build_runtime_error
 from aurora.runtime.paths import get_settings_path
+from aurora.runtime.server_lifecycle import ensure_runtime_for_inference
 from aurora.runtime.settings import load_settings
 
 
@@ -51,7 +51,10 @@ def run_first_run_wizard() -> None:
                 source=selected_source,
                 yes=True,
             )
-            validate_runtime(endpoint, model_id)
+            ensure_runtime_for_inference(
+                non_interactive=False,
+                model_bootstrap_callback=_bootstrap_model_for_auto_start,
+            )
             break
         except RuntimeDiagnosticError as error:
             _print_runtime_error(error)
@@ -71,6 +74,28 @@ def _print_runtime_error(error: RuntimeDiagnosticError) -> None:
     typer.echo("Comandos de recuperacao:", err=True)
     for command in error.recovery_commands:
         typer.echo(f"- {command}", err=True)
+
+
+def _bootstrap_model_for_auto_start(settings) -> str:
+    current_model = settings.model_id.strip() if settings.model_id else ""
+    default_model = current_model or "Qwen3-8B-Q8_0"
+
+    typer.echo("Auto-start detectou runtime sem modelo configurado.")
+    selected_model = typer.prompt(
+        "Modelo para inicializacao automatica",
+        default=default_model,
+    ).strip()
+    if not selected_model:
+        raise build_runtime_error("model_missing", model_id="<modelo>")
+
+    model_set_command(
+        endpoint=settings.endpoint_url,
+        model=selected_model,
+        source=settings.model_source or None,
+        yes=True,
+    )
+    typer.echo(f"Modelo persistido para auto-start: {selected_model}")
+    return selected_model
 
 
 def _print_setup_summary() -> None:
