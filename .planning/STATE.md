@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-03-02T01:10:34.203Z"
+last_updated: "2026-03-02T22:49:11Z"
 progress:
   total_phases: 1
   completed_phases: 1
@@ -16,14 +16,14 @@ progress:
 ## Project Reference
 
 - **Core value**: Total privacy with useful long-term memory over the vault, without external services.
-- **Current focus**: Phase 2 planning and execution kickoff.
+- **Current focus**: Phase 01.1 urgent insertion planning and execution kickoff.
 - **Depth mode**: comprehensive
 
 ## Current Position
 
-- **Current phase**: 2 - Vault Knowledge Base Lifecycle
-- **Current plan**: awaiting phase 02 planning/execution
-- **Status**: Phase 1 complete - ready for next phase planning
+- **Current phase**: 01.1 - llama.cpp server lifecycle via CLI (auto start/stop + health/status)
+- **Current plan**: awaiting phase 01.1 planning/execution
+- **Status**: Urgent inserted phase pending planning
 - **Overall progress**: 1/6 phases complete
 - **Progress bar**: [#-----] 17%
 
@@ -36,6 +36,9 @@ progress:
 - **Open blockers**: 0
 
 ## Accumulated Context
+
+### Roadmap Evolution
+- Phase 01.1 inserted after Phase 1: llama.cpp server lifecycle via CLI (auto start/stop + health/status) (URGENT)
 
 ### Decisions
 - Roadmap derived from six natural capability boundaries: runtime baseline, KB lifecycle, retrieval, memory fusion, operational commands, and observability hardening.
@@ -56,17 +59,17 @@ progress:
 - [Phase 01-local-runtime-baseline]: Root aurora invocation now renders help when no setup wizard is required, preserving command discoverability.
 
 ### TODOs
-- Plan and execute Phase 2 (`Vault Knowledge Base Lifecycle`).
+- Plan and execute Phase 01.1 (`llama.cpp server lifecycle via CLI (auto start/stop + health/status)`), using captured context decisions.
 
 ### Blockers
 - None.
 
 ## Session Continuity
 
-- **Last action**: Completed `01-05-PLAN.md` and created `01-05-SUMMARY.md`.
-- **Next command**: `/gsd:plan-phase 2` (or start execution once phase 2 plan exists)
-- **If resuming later**: Review `.planning/phases/01-local-runtime-baseline/01-05-SUMMARY.md`, then continue with Phase 2 planning.
+- **Last action**: Captured Phase `01.1` context and wrote `01.1-CONTEXT.md`.
+- **Next command**: `/gsd:plan-phase 01.1`
+- **If resuming later**: Open `.planning/phases/01.1-llama-cpp-server-lifecycle-via-cli-auto-start-stop-health-status/01.1-CONTEXT.md` and continue with Phase 01.1 planning.
 
 ---
 *Initialized: 2026-03-01*
-*Last updated: 2026-03-02 after executing plan 01-05*
+*Last updated: 2026-03-02 after phase 01.1 context gathering*
