@@ -474,3 +474,144 @@ def test_build_runtime_error_supports_startup_diagnostic_categories() -> None:
     assert "llama-server" in binary_error.message.lower()
     assert timeout_error.category == "startup_timeout"
     assert lock_error.category == "lock_timeout"
+
+
+def test_ensure_runtime_for_inference_returns_ready_runtime_metadata() -> None:
+    from aurora.runtime.server_lifecycle import ServerLifecycleService, ensure_runtime_for_inference
+
+    settings = _build_settings()
+    state: ServerLifecycleState | None = None
+
+    def _state_loader() -> ServerLifecycleState | None:
+        return state
+
+    def _state_saver(updated: ServerLifecycleState) -> ServerLifecycleState:
+        nonlocal state
+        state = updated
+        return updated
+
+    service = ServerLifecycleService(
+        settings_loader=lambda: settings,
+        settings_saver=lambda updated: updated,
+        state_loader=_state_loader,
+        state_saver=_state_saver,
+        state_clearer=lambda: None,
+        lock_acquirer=_no_lock,
+        client_factory=lambda _endpoint: FakeRuntimeClient(ready=True),
+        launch_process=lambda command, **kwargs: FakeProcess(pid=7_001, pgid=7_001),
+        is_pid_alive=lambda _pid: True,
+        which_fn=lambda _name: "/usr/local/bin/llama-server",
+        now_fn=lambda: datetime(2026, 3, 2, 22, 0, tzinfo=UTC),
+    )
+
+    result = ensure_runtime_for_inference(lifecycle_service=service, non_interactive=True)
+
+    assert result.status.lifecycle_state == "running"
+    assert result.status.ownership == "managed"
+    assert result.health.ok is True
+    assert result.settings.model_id == "Qwen3-8B-Q8_0"
+
+
+def test_ensure_runtime_for_inference_bootstraps_model_missing_with_callback() -> None:
+    from aurora.runtime.server_lifecycle import ServerLifecycleService, ensure_runtime_for_inference
+
+    current_settings = _build_settings(model="")
+    state: ServerLifecycleState | None = None
+    bootstrap_calls: list[str] = []
+
+    def _load_settings() -> RuntimeSettings:
+        return current_settings
+
+    def _save_settings(updated: RuntimeSettings) -> RuntimeSettings:
+        nonlocal current_settings
+        current_settings = updated
+        return updated
+
+    def _state_loader() -> ServerLifecycleState | None:
+        return state
+
+    def _state_saver(updated: ServerLifecycleState) -> ServerLifecycleState:
+        nonlocal state
+        state = updated
+        return updated
+
+    def _validate_runtime(*, model_id: str):
+        if not model_id:
+            from aurora.runtime.errors import build_runtime_error
+
+            raise build_runtime_error("model_missing", model_id="Qwen3-8B-Q8_0")
+        return {"status": "ok"}
+
+    runtime_client = type("RuntimeClient", (), {"validate_runtime": staticmethod(_validate_runtime)})
+
+    service = ServerLifecycleService(
+        settings_loader=_load_settings,
+        settings_saver=_save_settings,
+        state_loader=_state_loader,
+        state_saver=_state_saver,
+        state_clearer=lambda: None,
+        lock_acquirer=_no_lock,
+        client_factory=lambda _endpoint: runtime_client(),
+        launch_process=lambda command, **kwargs: FakeProcess(pid=8_001, pgid=8_001),
+        is_pid_alive=lambda _pid: True,
+        which_fn=lambda _name: "/usr/local/bin/llama-server",
+        now_fn=lambda: datetime(2026, 3, 2, 22, 0, tzinfo=UTC),
+    )
+
+    result = ensure_runtime_for_inference(
+        lifecycle_service=service,
+        non_interactive=True,
+        model_bootstrap_callback=lambda settings: (
+            bootstrap_calls.append(settings.endpoint_url) or "Qwen3-8B-Q8_0"
+        ),
+    )
+
+    assert bootstrap_calls == ["http://127.0.0.1:8080"]
+    assert result.settings.model_id == "Qwen3-8B-Q8_0"
+    assert result.health.ok is True
+
+
+def test_ensure_runtime_for_inference_model_missing_without_callback_fails_fast() -> None:
+    from aurora.runtime.errors import RuntimeDiagnosticError
+    from aurora.runtime.server_lifecycle import ServerLifecycleService, ensure_runtime_for_inference
+
+    service = ServerLifecycleService(
+        settings_loader=lambda: _build_settings(model=""),
+        settings_saver=lambda updated: updated,
+        state_loader=lambda: None,
+        state_saver=lambda updated: updated,
+        state_clearer=lambda: None,
+        lock_acquirer=_no_lock,
+        client_factory=lambda _endpoint: type(
+            "RuntimeClient",
+            (),
+            {
+                "validate_runtime": staticmethod(
+                    lambda *, model_id: (_ for _ in ()).throw(
+                        __import__("aurora.runtime.errors", fromlist=["build_runtime_error"])
+                        .build_runtime_error("model_missing", model_id="Qwen3-8B-Q8_0")
+                    )
+                )
+            },
+        )(),
+        launch_process=lambda command, **kwargs: FakeProcess(pid=8_002, pgid=8_002),
+        is_pid_alive=lambda _pid: True,
+        which_fn=lambda _name: "/usr/local/bin/llama-server",
+        now_fn=lambda: datetime(2026, 3, 2, 22, 0, tzinfo=UTC),
+    )
+
+    with pytest.raises(RuntimeDiagnosticError) as raised:
+        ensure_runtime_for_inference(
+            lifecycle_service=service,
+            non_interactive=True,
+            model_bootstrap_callback=None,
+        )
+
+    assert raised.value.category == "model_missing"
+    assert "aurora model set --model" in raised.value.recovery_commands[0]
+
+
+def test_ensure_runtime_for_inference_is_exported_by_runtime_package() -> None:
+    from aurora.runtime import ensure_runtime_for_inference as exported
+
+    assert callable(exported)
