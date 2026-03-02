@@ -3,17 +3,23 @@
 import typer
 
 from aurora.cli.model import model_app
+from aurora.cli.setup import run_first_run_wizard, setup_app, should_run_first_run_wizard
 
 app = typer.Typer(
-    no_args_is_help=True,
+    invoke_without_command=True,
+    no_args_is_help=False,
     add_completion=False,
     help="Aurora CLI local.",
 )
 
 
 @app.callback()
-def root() -> None:
+def root(ctx: typer.Context) -> None:
     """Aurora root command."""
+    if ctx.invoked_subcommand is not None:
+        return
+    if should_run_first_run_wizard():
+        run_first_run_wizard()
 
 
 def _placeholder(group_name: str) -> None:
@@ -24,14 +30,8 @@ def _placeholder(group_name: str) -> None:
     raise typer.Exit(code=1)
 
 
-setup_app = typer.Typer(invoke_without_command=True, no_args_is_help=False)
 config_app = typer.Typer(invoke_without_command=True, no_args_is_help=False)
 doctor_app = typer.Typer(invoke_without_command=True, no_args_is_help=False)
-
-
-@setup_app.callback()
-def setup_placeholder() -> None:
-    _placeholder("setup")
 
 
 @config_app.callback()
