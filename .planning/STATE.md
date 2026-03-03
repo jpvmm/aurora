@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-last_updated: "2026-03-03T21:15:05Z"
+last_updated: "2026-03-03T22:16:13Z"
 progress:
   total_phases: 2
   completed_phases: 2
@@ -16,14 +16,14 @@ progress:
 ## Project Reference
 
 - **Core value**: Total privacy with useful long-term memory over the vault, without external services.
-- **Current focus**: Phase 01.1 complete with verification gap closed; prepare planning/execution for Phase 2 (Vault Knowledge Base Lifecycle).
+- **Current focus**: Phase 2 context captured; ready to plan Vault Knowledge Base Lifecycle implementation.
 - **Depth mode**: comprehensive
 
 ## Current Position
 
-- **Current phase**: 01.1 - llama.cpp server lifecycle via CLI (auto start/stop + health/status)
-- **Current plan**: 01.1 plans complete (01.1-05 completed on 2026-03-03)
-- **Status**: Phase 01.1 complete
+- **Current phase**: 2 - Vault Knowledge Base Lifecycle
+- **Current plan**: context captured, awaiting phase planning
+- **Status**: Phase 2 discuss complete, ready for plan
 - **Overall progress**: 2/7 phases complete
 - **Progress bar**: [##-----] 28%
 
@@ -69,6 +69,7 @@ progress:
 - [Phase 01.1]: LifecycleHealth now includes pid and uptime_seconds across crashed/stopped/diagnostic/healthy health responses.
 - [Phase 01.1]: model health text/json outputs now expose the same pid/uptime contract with regression coverage.
 - [Phase 01.1-llama-cpp-server-lifecycle-via-cli-auto-start-stop-health-status]: Kept explicit pid/uptime parity assertions in setup wizard tests to prevent future LifecycleHealth contract drift. — Ensures test fixtures fail fast when status/health process metadata contracts diverge.
+- [Phase 2-vault-knowledge-base-lifecycle]: Locked KB lifecycle direction: `aurora kb` namespace, scoped indexing with exclude precedence, templater pre-processing, deterministic incremental update semantics, and privacy-safe progress logging.
 
 ### TODOs
 - Plan and execute Phase 2 (`Vault Knowledge Base Lifecycle`).
@@ -79,10 +80,10 @@ progress:
 
 ## Session Continuity
 
-- **Last action**: Executed `01.1-05-PLAN.md`, aligned setup-wizard LifecycleHealth fixtures with pid/uptime parity, reran broad runtime/CLI regressions, and wrote `01.1-05-SUMMARY.md`.
-- **Next command**: `/gsd:plan-phase 02`
-- **If resuming later**: Open `.planning/phases/01.1-llama-cpp-server-lifecycle-via-cli-auto-start-stop-health-status/01.1-05-SUMMARY.md`, then begin Phase 2 planning.
+- **Last action**: Captured Phase 2 decisions and wrote `02-CONTEXT.md`.
+- **Next command**: `/gsd:plan-phase 2`
+- **If resuming later**: Open `.planning/phases/02-vault-knowledge-base-lifecycle/02-CONTEXT.md` and continue with phase planning.
 
 ---
 *Initialized: 2026-03-01*
-*Last updated: 2026-03-03 after executing plan 01.1-05*
+*Last updated: 2026-03-03 after phase 2 context gathering*
