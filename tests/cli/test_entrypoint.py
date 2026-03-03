@@ -44,9 +44,10 @@ def test_root_no_args_shows_help_when_wizard_is_not_required(monkeypatch) -> Non
     assert "config" in result.output
     assert "model" in result.output
     assert "doctor" in result.output
+    assert "kb" in result.output
 
 
-@pytest.mark.parametrize("command_group", ["setup", "config", "model", "doctor"])
+@pytest.mark.parametrize("command_group", ["setup", "config", "model", "doctor", "kb"])
 def test_phase_one_command_groups_are_listed_in_root_help(command_group: str) -> None:
     app_module = importlib.import_module("aurora.cli.app")
     result = RUNNER.invoke(app_module.app, ["--help"], prog_name="aurora")
@@ -111,3 +112,64 @@ def test_model_group_exposes_set_command_in_help() -> None:
     assert "stop" in result.output
     assert "status" in result.output
     assert "health" in result.output
+
+
+def test_kb_group_exposes_lifecycle_commands() -> None:
+    app_module = importlib.import_module("aurora.cli.app")
+    result = RUNNER.invoke(app_module.app, ["kb", "--help"], prog_name="aurora")
+
+    assert result.exit_code == 0
+    assert "ingest" in result.output
+    assert "update" in result.output
+    assert "delete" in result.output
+    assert "rebuild" in result.output
+
+
+def test_kb_ingest_requires_explicit_vault_path() -> None:
+    app_module = importlib.import_module("aurora.cli.app")
+    result = RUNNER.invoke(app_module.app, ["kb", "ingest"], prog_name="aurora")
+
+    assert result.exit_code == 2
+    assert "Missing argument" in result.output
+    assert "VAULT_PATH" in result.output.upper()
+
+
+@pytest.mark.parametrize(
+    ("command", "has_dry_run"),
+    [
+        ("ingest", True),
+        ("update", True),
+        ("delete", False),
+        ("rebuild", True),
+    ],
+)
+def test_kb_commands_expose_json_and_optional_dry_run(command: str, has_dry_run: bool) -> None:
+    app_module = importlib.import_module("aurora.cli.app")
+    result = RUNNER.invoke(app_module.app, ["kb", command, "--help"], prog_name="aurora")
+
+    assert result.exit_code == 0
+    assert "--json" in result.output
+    if has_dry_run:
+        assert "--dry-run" in result.output
+    else:
+        assert "--dry-run" not in result.output
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["ingest", "/tmp/vault"],
+        ["update"],
+        ["delete"],
+        ["rebuild"],
+    ],
+)
+def test_kb_commands_fail_fast_with_actionable_ptbr_diagnostics(args: list[str]) -> None:
+    app_module = importlib.import_module("aurora.cli.app")
+    result = RUNNER.invoke(app_module.app, ["kb", *args], prog_name="aurora")
+
+    assert result.exit_code == 1
+    normalized = result.output.lower()
+    assert "categoria: kb_service_unavailable" in normalized
+    assert "fase 2" in normalized
+    assert "recuperacao:" in normalized
