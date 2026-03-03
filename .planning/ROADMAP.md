@@ -18,7 +18,7 @@
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Local Runtime Baseline | 5/5 | Complete    | 2026-03-02 |
-| 2. Vault Knowledge Base Lifecycle | 0/1 | Not started | - |
+| 2. Vault Knowledge Base Lifecycle | 1/4 | In Progress | - |
 | 3. Grounded Retrieval Experience | 0/1 | Not started | - |
 | 4. Long-Term Memory Fusion | 0/1 | Not started | - |
 | 5. Operational Command Surface | 0/1 | Not started | - |
@@ -69,7 +69,7 @@ Plans:
 **Plans**: 4 plans
 
 Plans:
-- [ ] `02-01-PLAN.md` - Create KB command namespace, shared contracts, and global scope/settings persistence baseline.
+- [x] `02-01-PLAN.md` - Create KB command namespace, shared contracts, and global scope/settings persistence baseline. (`02-01-SUMMARY.md`, 2026-03-03)
 - [ ] `02-02-PLAN.md` - Implement scoped markdown scanner and templater pre-processing with privacy-safe metadata/log counters.
 - [ ] `02-03-PLAN.md` - Build manifest/delta/QMD adapter foundations for incremental update, delete, and rebuild semantics.
 - [ ] `02-04-PLAN.md` - Wire full `aurora kb` ingest/update/delete/rebuild lifecycle with progress/final stats and CLI integration tests.
@@ -150,4 +150,4 @@ Orphans: 0
 Duplicates: 0
 
 ---
-*Last updated: 2026-03-03 after executing plan 01.1-05*
+*Last updated: 2026-03-03 after executing plan 02-01*

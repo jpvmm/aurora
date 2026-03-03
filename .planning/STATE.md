@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-last_updated: "2026-03-03T22:16:13Z"
+last_updated: "2026-03-03T22:44:29.778Z"
 progress:
-  total_phases: 2
+  total_phases: 3
   completed_phases: 2
-  total_plans: 10
-  completed_plans: 10
+  total_plans: 14
+  completed_plans: 11
 ---
 
 # STATE: Aurora
@@ -16,14 +16,14 @@ progress:
 ## Project Reference
 
 - **Core value**: Total privacy with useful long-term memory over the vault, without external services.
-- **Current focus**: Phase 2 context captured; ready to plan Vault Knowledge Base Lifecycle implementation.
+- **Current focus**: Phase 2 execution in progress after completing plan 02-01 contract foundation.
 - **Depth mode**: comprehensive
 
 ## Current Position
 
 - **Current phase**: 2 - Vault Knowledge Base Lifecycle
-- **Current plan**: context captured, awaiting phase planning
-- **Status**: Phase 2 discuss complete, ready for plan
+- **Current plan**: 02-01 complete; 02-02 next
+- **Status**: Phase 2 in progress (1/4 plans complete)
 - **Overall progress**: 2/7 phases complete
 - **Progress bar**: [##-----] 28%
 
@@ -70,9 +70,11 @@ progress:
 - [Phase 01.1]: model health text/json outputs now expose the same pid/uptime contract with regression coverage.
 - [Phase 01.1-llama-cpp-server-lifecycle-via-cli-auto-start-stop-health-status]: Kept explicit pid/uptime parity assertions in setup wizard tests to prevent future LifecycleHealth contract drift. — Ensures test fixtures fail fast when status/health process metadata contracts diverge.
 - [Phase 2-vault-knowledge-base-lifecycle]: Locked KB lifecycle direction: `aurora kb` namespace, scoped indexing with exclude precedence, templater pre-processing, deterministic incremental update semantics, and privacy-safe progress logging.
+- [Phase 02-vault-knowledge-base-lifecycle]: KB contracts use frozen Pydantic models with normalized tuple fields to keep deterministic dumps. — Ensures consistent text/json contract payloads across future KB command wiring.
+- [Phase 02-vault-knowledge-base-lifecycle]: Unwired KB commands fail fast with pt-BR actionable diagnostics while still emitting shared summary payload for --json. — Locks UX contract now so service integration can change internals without changing command behavior.
 
 ### TODOs
-- Plan and execute Phase 2 (`Vault Knowledge Base Lifecycle`).
+- Execute remaining Phase 2 plans (`02-02`, `02-03`, `02-04`).
 - Run verification/UAT for phase 01.1 lifecycle command UX (`model start|stop|status|health` and setup auto-start flow).
 
 ### Blockers
@@ -80,10 +82,10 @@ progress:
 
 ## Session Continuity
 
-- **Last action**: Captured Phase 2 decisions and wrote `02-CONTEXT.md`.
-- **Next command**: `/gsd:plan-phase 2`
-- **If resuming later**: Open `.planning/phases/02-vault-knowledge-base-lifecycle/02-CONTEXT.md` and continue with phase planning.
+- **Last action**: Executed `02-01-PLAN.md` and created `02-01-SUMMARY.md`.
+- **Next command**: `/gsd:execute-phase 2`
+- **If resuming later**: Open `.planning/phases/02-vault-knowledge-base-lifecycle/02-01-SUMMARY.md` then continue with `02-02-PLAN.md`.
 
 ---
 *Initialized: 2026-03-01*
-*Last updated: 2026-03-03 after phase 2 context gathering*
+*Last updated: 2026-03-03 after executing phase 02 plan 01*

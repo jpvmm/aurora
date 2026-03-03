@@ -9,11 +9,11 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Knowledge Base
 
-- [ ] **KB-01**: User can ingest an Obsidian vault path containing `.md` files via CLI command.
+- [x] **KB-01**: User can ingest an Obsidian vault path containing `.md` files via CLI command.
 - [ ] **KB-02**: User can update index incrementally for changed notes without full reingestion.
 - [ ] **KB-03**: User can delete notes from the knowledge base via CLI command.
 - [ ] **KB-04**: User can trigger full rebuild of the knowledge base via CLI command.
-- [ ] **KB-05**: User can view ingestion progress and final stats in readable CLI logs.
+- [x] **KB-05**: User can view ingestion progress and final stats in readable CLI logs.
 
 ### Retrieval
 
@@ -45,7 +45,7 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Privacy & Safety
 
 - [x] **PRIV-01**: User can run Aurora in local-only default mode without cloud API dependency.
-- [ ] **PRIV-02**: User can define include/exclude scopes for which vault paths are indexed.
+- [x] **PRIV-02**: User can define include/exclude scopes for which vault paths are indexed.
 - [ ] **PRIV-03**: User logs avoid leaking sensitive note content by default.
 - [x] **PRIV-04**: User has telemetry disabled by default.
 
@@ -86,11 +86,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| KB-01 | Phase 2 | Pending |
+| KB-01 | Phase 2 | Complete |
 | KB-02 | Phase 2 | Pending |
 | KB-03 | Phase 2 | Pending |
 | KB-04 | Phase 2 | Pending |
-| KB-05 | Phase 2 | Pending |
+| KB-05 | Phase 2 | Complete |
 | RET-01 | Phase 3 | Pending |
 | RET-02 | Phase 3 | Pending |
 | RET-03 | Phase 3 | Pending |
@@ -107,7 +107,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | MOD-02 | Phase 6 | Pending |
 | MOD-03 | Phase 1 | Complete |
 | PRIV-01 | Phase 1 | Complete |
-| PRIV-02 | Phase 2 | Pending |
+| PRIV-02 | Phase 2 | Complete |
 | PRIV-03 | Phase 6 | Pending |
 | PRIV-04 | Phase 1 | Complete |
 
@@ -118,4 +118,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-03-01*
-*Last updated: 2026-03-02 after executing plan 01-03*
+*Last updated: 2026-03-03 after executing plan 02-01*
