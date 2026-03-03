@@ -248,6 +248,8 @@ def test_model_health_supports_json_output(
                 port=8080,
                 model_id="Qwen3-8B-Q8_0",
                 ownership="managed",
+                pid=4_242,
+                uptime_seconds=5,
                 category="endpoint_offline",
                 message="offline",
                 recovery_commands=("aurora model start",),
@@ -261,7 +263,41 @@ def test_model_health_supports_json_output(
     payload = json.loads(result.output)
     assert payload["ok"] is False
     assert payload["category"] == "endpoint_offline"
+    assert payload["pid"] == 4_242
+    assert payload["uptime_seconds"] == 5
     assert payload["recovery_commands"] == ["aurora model start"]
+
+
+def test_model_health_text_output_displays_pid_and_uptime_lines(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("AURORA_CONFIG_DIR", str(tmp_path / "config"))
+    app_module = importlib.import_module("aurora.cli.app")
+    model_module = importlib.import_module("aurora.cli.model")
+
+    class FakeService:
+        def check_health(self):
+            return LifecycleHealth(
+                ok=True,
+                endpoint_url="http://127.0.0.1:8080",
+                port=8080,
+                model_id="Qwen3-8B-Q8_0",
+                ownership="managed",
+                pid=7_001,
+                uptime_seconds=42,
+                category=None,
+                message="runtime ok",
+                recovery_commands=(),
+            )
+
+    monkeypatch.setattr(model_module, "ServerLifecycleService", lambda: FakeService(), raising=False)
+
+    result = RUNNER.invoke(app_module.app, ["model", "health"], prog_name="aurora")
+
+    assert result.exit_code == 0
+    assert "- pid: 7001" in result.output
+    assert "- uptime(s): 42" in result.output
 
 
 def test_model_start_non_interactive_requires_override_for_external_runtime(
