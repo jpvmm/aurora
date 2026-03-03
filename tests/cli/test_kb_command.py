@@ -3,11 +3,14 @@ from __future__ import annotations
 import importlib
 import json
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from typer.testing import CliRunner
 
 from aurora.kb.contracts import KBFileDiagnostic, KBOperationCounters, KBOperationSummary, KBScopeConfig
+from aurora.kb.service import KBService
 from aurora.kb.service import KBServiceError
+from aurora.runtime.settings import RuntimeSettings, save_settings
 
 
 RUNNER = CliRunner()
@@ -34,6 +37,11 @@ def _summary(*, operation: str, dry_run: bool = False) -> KBOperationSummary:
         ),
         diagnostics=(),
     )
+
+
+def _write_note(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
 
 
 @dataclass
@@ -166,3 +174,33 @@ def test_rebuild_error_output_includes_path_category_and_recovery_without_conten
     assert "state_divergence" in result.output
     assert "aurora kb rebuild" in result.output
     assert "conteudo sigiloso da nota" not in result.output.lower()
+
+
+def test_update_reports_privacy_safe_read_errors_without_forcing_delete(tmp_path, monkeypatch) -> None:
+    app_module = importlib.import_module("aurora.cli.app")
+    config_dir = tmp_path / "config"
+    vault_path = tmp_path / "vault"
+    note_path = vault_path / "notes" / "protected.md"
+    monkeypatch.setenv("AURORA_CONFIG_DIR", str(config_dir))
+
+    save_settings(
+        RuntimeSettings(
+            kb_vault_path=str(vault_path),
+            kb_include=("notes/*.md",),
+            kb_exclude=(),
+            kb_default_excludes=(),
+        )
+    )
+    _write_note(note_path, "conteudo sigiloso da nota\n")
+    KBService().run_ingest(vault_path=str(vault_path), dry_run=False)
+    note_path.write_bytes(b"\xff\xfe\xfa")
+
+    result = RUNNER.invoke(app_module.app, ["kb", "update"], prog_name="aurora")
+
+    assert result.exit_code == 0
+    output = result.output.lower()
+    assert "path=notes/protected.md" in output
+    assert "category=file_read_error" in output
+    assert "aurora kb update" in output
+    assert "removed=0" in output
+    assert "conteudo sigiloso da nota" not in output

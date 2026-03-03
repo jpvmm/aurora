@@ -205,3 +205,26 @@ def test_adapter_diagnostics_surface_as_service_error(tmp_path, monkeypatch) -> 
 
     assert error.value.category == "backend_apply_failed"
     assert error.value.diagnostics[0].path == "notes/a.md"
+
+
+def test_update_keeps_manifest_entry_when_note_has_noncritical_read_error(tmp_path, monkeypatch) -> None:
+    config_dir = tmp_path / "config"
+    vault_path = tmp_path / "vault"
+    monkeypatch.setenv("AURORA_CONFIG_DIR", str(config_dir))
+    _configure_settings(config_dir=config_dir, vault_path=vault_path)
+    note_path = vault_path / "notes" / "protected.md"
+    _write_note(note_path, "conteudo original\n")
+
+    service = KBService(backend=FakeBackend())
+    service.run_ingest(vault_path=str(vault_path), dry_run=False)
+
+    note_path.write_bytes(b"\xff\xfe\xfa")
+    summary = service.run_update()
+
+    assert summary.counters.errors == 1
+    assert summary.counters.removed == 0
+    assert summary.diagnostics[0].path == "notes/protected.md"
+    assert summary.diagnostics[0].category == "file_read_error"
+    manifest = load_kb_manifest()
+    assert manifest is not None
+    assert "notes/protected.md" in manifest.notes
