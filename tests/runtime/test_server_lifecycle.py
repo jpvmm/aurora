@@ -304,6 +304,104 @@ def test_get_status_reports_runtime_payload_for_ownership_mode() -> None:
     assert status.uptime_seconds >= 100
 
 
+def test_check_health_includes_pid_and_uptime_for_running_runtime() -> None:
+    from aurora.runtime.server_lifecycle import ServerLifecycleService
+
+    settings = _build_settings()
+    seeded = _build_state(
+        ownership="managed",
+        pid=7_777,
+        process_group_id=7_777,
+        started_at="2026-03-02T21:58:00Z",
+    )
+
+    service = ServerLifecycleService(
+        settings_loader=lambda: settings,
+        settings_saver=lambda updated: updated,
+        state_loader=lambda: seeded,
+        state_saver=lambda state: state,
+        state_clearer=lambda: None,
+        lock_acquirer=_no_lock,
+        client_factory=lambda _endpoint: FakeRuntimeClient(ready=True),
+        launch_process=lambda command, **kwargs: FakeProcess(),
+        is_pid_alive=lambda _pid: True,
+        which_fn=lambda _name: "/usr/local/bin/llama-server",
+        now_fn=lambda: datetime(2026, 3, 2, 22, 0, tzinfo=UTC),
+    )
+
+    health = service.check_health()
+
+    assert health.ok is True
+    assert health.pid == 7_777
+    assert health.uptime_seconds == 120
+    assert health.to_dict()["pid"] == 7_777
+    assert health.to_dict()["uptime_seconds"] == 120
+
+
+def test_check_health_includes_pid_and_uptime_for_stopped_runtime() -> None:
+    from aurora.runtime.server_lifecycle import ServerLifecycleService
+
+    settings = _build_settings()
+
+    service = ServerLifecycleService(
+        settings_loader=lambda: settings,
+        settings_saver=lambda updated: updated,
+        state_loader=lambda: None,
+        state_saver=lambda state: state,
+        state_clearer=lambda: None,
+        lock_acquirer=_no_lock,
+        client_factory=lambda _endpoint: FakeRuntimeClient(ready=False),
+        launch_process=lambda command, **kwargs: FakeProcess(),
+        is_pid_alive=lambda _pid: False,
+        which_fn=lambda _name: "/usr/local/bin/llama-server",
+        now_fn=lambda: datetime(2026, 3, 2, 22, 0, tzinfo=UTC),
+    )
+
+    health = service.check_health()
+
+    assert health.ok is False
+    assert health.category == "endpoint_offline"
+    assert health.pid is None
+    assert health.uptime_seconds is None
+    assert health.to_dict()["pid"] is None
+    assert health.to_dict()["uptime_seconds"] is None
+
+
+def test_check_health_includes_pid_and_uptime_for_runtime_diagnostic_path() -> None:
+    from aurora.runtime.server_lifecycle import ServerLifecycleService
+
+    settings = _build_settings()
+    seeded = _build_state(
+        ownership="managed",
+        pid=9_333,
+        process_group_id=9_333,
+        started_at="2026-03-02T21:59:30Z",
+    )
+
+    service = ServerLifecycleService(
+        settings_loader=lambda: settings,
+        settings_saver=lambda updated: updated,
+        state_loader=lambda: seeded,
+        state_saver=lambda state: state,
+        state_clearer=lambda: None,
+        lock_acquirer=_no_lock,
+        client_factory=lambda _endpoint: FakeRuntimeClient(ready=False),
+        launch_process=lambda command, **kwargs: FakeProcess(),
+        is_pid_alive=lambda _pid: True,
+        which_fn=lambda _name: "/usr/local/bin/llama-server",
+        now_fn=lambda: datetime(2026, 3, 2, 22, 0, tzinfo=UTC),
+    )
+
+    health = service.check_health()
+
+    assert health.ok is False
+    assert health.category == "endpoint_offline"
+    assert health.pid == 9_333
+    assert health.uptime_seconds == 30
+    assert health.to_dict()["pid"] == 9_333
+    assert health.to_dict()["uptime_seconds"] == 30
+
+
 def test_start_server_fallback_switches_port_and_persists_updated_endpoint() -> None:
     from aurora.runtime.server_lifecycle import ServerLifecycleService
 
