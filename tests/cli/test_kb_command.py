@@ -202,5 +202,5 @@ def test_update_reports_privacy_safe_read_errors_without_forcing_delete(tmp_path
     assert "path=notes/protected.md" in output
     assert "category=file_read_error" in output
     assert "aurora kb update" in output
-    assert "removed=0" in output
+    assert "totais: read=1 indexed=0 updated=0 removed=0 skipped=1 errors=1" in output
     assert "conteudo sigiloso da nota" not in output

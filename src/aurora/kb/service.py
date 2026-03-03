@@ -584,7 +584,7 @@ class KBService:
         return KBDelta(
             added=tuple(path for path in delta.added if path not in errored_paths),
             updated=tuple(path for path in delta.updated if path not in errored_paths),
-            removed=delta.removed,
+            removed=tuple(path for path in delta.removed if path not in errored_paths),
             unchanged=tuple(path for path in delta.unchanged if path not in errored_paths),
             divergence_reasons=delta.divergence_reasons,
         )
