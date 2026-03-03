@@ -66,7 +66,13 @@ Plans:
 3. User can run incremental updates so only changed notes are reprocessed.
 4. User can delete notes from the index and trigger a full rebuild when needed.
 5. User can see readable progress logs and final ingestion stats in CLI output.
-**Plans**: TBD
+**Plans**: 4 plans
+
+Plans:
+- [ ] `02-01-PLAN.md` - Create KB command namespace, shared contracts, and global scope/settings persistence baseline.
+- [ ] `02-02-PLAN.md` - Implement scoped markdown scanner and templater pre-processing with privacy-safe metadata/log counters.
+- [ ] `02-03-PLAN.md` - Build manifest/delta/QMD adapter foundations for incremental update, delete, and rebuild semantics.
+- [ ] `02-04-PLAN.md` - Wire full `aurora kb` ingest/update/delete/rebuild lifecycle with progress/final stats and CLI integration tests.
 
 ### Phase 3: Grounded Retrieval Experience
 **Goal**: User can ask questions and receive trustworthy, evidence-grounded responses from vault content.
