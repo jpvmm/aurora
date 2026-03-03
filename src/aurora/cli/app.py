@@ -4,6 +4,7 @@ import typer
 
 from aurora.cli.config import config_app
 from aurora.cli.doctor import doctor_app
+from aurora.cli.kb import kb_app
 from aurora.cli.model import model_app
 from aurora.cli.setup import run_first_run_wizard, setup_app, should_run_first_run_wizard
 
@@ -30,3 +31,4 @@ app.add_typer(setup_app, name="setup")
 app.add_typer(config_app, name="config")
 app.add_typer(model_app, name="model")
 app.add_typer(doctor_app, name="doctor")
+app.add_typer(kb_app, name="kb")
