@@ -1,0 +1,223 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from aurora.kb.contracts import KBFileDiagnostic
+from aurora.kb.delta import KBDelta
+from aurora.kb.manifest import KBManifest, KBManifestNoteRecord
+from aurora.kb.qmd_adapter import (
+    QMDAdapter,
+    QMDAdapterResult,
+    QMDBackendDiagnostic,
+    QMDBackendResponse,
+)
+
+
+@dataclass
+class FakeBackend:
+    apply_response: QMDBackendResponse
+    remove_response: QMDBackendResponse
+    rebuild_response: QMDBackendResponse
+    apply_raises: Exception | None = None
+    remove_raises: Exception | None = None
+    rebuild_raises: Exception | None = None
+
+    def __post_init__(self) -> None:
+        self.apply_calls: list[tuple[str, ...]] = []
+        self.remove_calls: list[tuple[str, ...]] = []
+        self.rebuild_calls: list[tuple[str, ...]] = []
+
+    def apply(self, paths: tuple[str, ...]) -> QMDBackendResponse:
+        self.apply_calls.append(paths)
+        if self.apply_raises is not None:
+            raise self.apply_raises
+        return self.apply_response
+
+    def remove(self, paths: tuple[str, ...]) -> QMDBackendResponse:
+        self.remove_calls.append(paths)
+        if self.remove_raises is not None:
+            raise self.remove_raises
+        return self.remove_response
+
+    def rebuild(self, paths: tuple[str, ...]) -> QMDBackendResponse:
+        self.rebuild_calls.append(paths)
+        if self.rebuild_raises is not None:
+            raise self.rebuild_raises
+        return self.rebuild_response
+
+
+def _note(size: int, mtime_ns: int) -> KBManifestNoteRecord:
+    return KBManifestNoteRecord(
+        size=size,
+        mtime_ns=mtime_ns,
+        sha256=None,
+        indexed_at="2026-03-03T23:10:00Z",
+        cleaned_size=size,
+        templater_tags_removed=0,
+    )
+
+
+def _ok() -> QMDBackendResponse:
+    return QMDBackendResponse(ok=True)
+
+
+def test_apply_delta_mutates_manifest_only_after_backend_success() -> None:
+    backend = FakeBackend(apply_response=_ok(), remove_response=_ok(), rebuild_response=_ok())
+    saves: list[KBManifest] = []
+
+    adapter = QMDAdapter(backend=backend, save_manifest=lambda manifest: saves.append(manifest) or manifest)
+
+    manifest = KBManifest(
+        vault_root="/vault",
+        notes={
+            "notes/keep.md": _note(10, 1),
+            "notes/update.md": _note(10, 1),
+            "notes/remove.md": _note(10, 1),
+        },
+    )
+    delta = KBDelta(
+        added=("notes/add.md",),
+        updated=("notes/update.md",),
+        removed=("notes/remove.md",),
+        unchanged=("notes/keep.md",),
+    )
+
+    result = adapter.apply_delta(
+        manifest=manifest,
+        delta=delta,
+        scan_records={
+            "notes/add.md": _note(11, 2),
+            "notes/update.md": _note(12, 3),
+        },
+    )
+
+    assert result == QMDAdapterResult(
+        applied=("notes/add.md", "notes/update.md"),
+        removed=("notes/remove.md",),
+        diagnostics=(),
+        state_mutated=True,
+    )
+    assert backend.apply_calls == [("notes/add.md", "notes/update.md")]
+    assert backend.remove_calls == [("notes/remove.md",)]
+    assert len(saves) == 1
+    assert set(saves[0].notes.keys()) == {"notes/add.md", "notes/update.md", "notes/keep.md"}
+
+
+def test_apply_delta_refuses_state_mutation_on_divergence() -> None:
+    backend = FakeBackend(apply_response=_ok(), remove_response=_ok(), rebuild_response=_ok())
+    saves: list[KBManifest] = []
+
+    adapter = QMDAdapter(backend=backend, save_manifest=lambda manifest: saves.append(manifest) or manifest)
+
+    result = adapter.apply_delta(
+        manifest=KBManifest(vault_root="/vault", notes={}),
+        delta=KBDelta(
+            added=(),
+            updated=(),
+            removed=(),
+            unchanged=(),
+            divergence_reasons=("manifest path conflict",),
+        ),
+        scan_records={},
+    )
+
+    assert result.state_mutated is False
+    assert result.applied == ()
+    assert result.removed == ()
+    assert result.diagnostics == (
+        KBFileDiagnostic(
+            path="<manifest>",
+            category="state_divergence",
+            recovery_hint="Execute `aurora kb rebuild` para reconciliar o indice.",
+        ),
+    )
+    assert backend.apply_calls == []
+    assert backend.remove_calls == []
+    assert saves == []
+
+
+def test_apply_delta_partial_backend_failure_keeps_manifest_unchanged() -> None:
+    backend = FakeBackend(
+        apply_response=_ok(),
+        remove_response=QMDBackendResponse(
+            ok=False,
+            diagnostics=(
+                QMDBackendDiagnostic(
+                    path="notes/remove.md",
+                    category="remove_failed",
+                    recovery_hint="Tente novamente com `aurora kb update`.",
+                ),
+            ),
+        ),
+        rebuild_response=_ok(),
+    )
+    saves: list[KBManifest] = []
+    adapter = QMDAdapter(backend=backend, save_manifest=lambda manifest: saves.append(manifest) or manifest)
+
+    result = adapter.apply_delta(
+        manifest=KBManifest(vault_root="/vault", notes={"notes/remove.md": _note(1, 1)}),
+        delta=KBDelta(added=(), updated=(), removed=("notes/remove.md",), unchanged=()),
+        scan_records={},
+    )
+
+    assert result.state_mutated is False
+    assert result.diagnostics == (
+        KBFileDiagnostic(
+            path="notes/remove.md",
+            category="remove_failed",
+            recovery_hint="Tente novamente com `aurora kb update`.",
+        ),
+    )
+    assert saves == []
+
+
+def test_backend_exceptions_are_mapped_to_typed_diagnostics() -> None:
+    backend = FakeBackend(
+        apply_response=_ok(),
+        remove_response=_ok(),
+        rebuild_response=_ok(),
+        apply_raises=RuntimeError("upstream traceback noise"),
+    )
+    adapter = QMDAdapter(backend=backend, save_manifest=lambda manifest: manifest)
+
+    result = adapter.apply_delta(
+        manifest=KBManifest(vault_root="/vault", notes={}),
+        delta=KBDelta(added=("notes/a.md",), updated=(), removed=(), unchanged=()),
+        scan_records={"notes/a.md": _note(1, 1)},
+    )
+
+    assert result.state_mutated is False
+    assert result.diagnostics == (
+        KBFileDiagnostic(
+            path="<index>",
+            category="backend_error",
+            recovery_hint="Falha no backend de indice. Execute `aurora kb rebuild`.",
+        ),
+    )
+
+
+def test_delete_and_rebuild_entrypoints_commit_manifest_on_success() -> None:
+    backend = FakeBackend(apply_response=_ok(), remove_response=_ok(), rebuild_response=_ok())
+    saves: list[KBManifest] = []
+
+    adapter = QMDAdapter(backend=backend, save_manifest=lambda manifest: saves.append(manifest) or manifest)
+
+    initial = KBManifest(vault_root="/vault", notes={"notes/old.md": _note(1, 1)})
+
+    delete_result = adapter.delete_paths(manifest=initial, paths=("notes/old.md",))
+    assert delete_result.state_mutated is True
+    assert delete_result.removed == ("notes/old.md",)
+
+    rebuild_result = adapter.rebuild(
+        manifest=initial,
+        records={
+            "notes/new.md": _note(2, 2),
+            "notes/newer.md": _note(3, 3),
+        },
+    )
+    assert rebuild_result.state_mutated is True
+    assert rebuild_result.applied == ("notes/new.md", "notes/newer.md")
+
+    assert len(saves) == 2
+    assert set(saves[0].notes.keys()) == set()
+    assert set(saves[1].notes.keys()) == {"notes/new.md", "notes/newer.md"}
