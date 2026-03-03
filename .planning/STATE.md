@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-last_updated: "2026-03-03T00:01:09.085Z"
+last_updated: "2026-03-03T20:47:45.716Z"
 progress:
   total_phases: 2
   completed_phases: 2
-  total_plans: 8
-  completed_plans: 8
+  total_plans: 9
+  completed_plans: 9
 ---
 
 # STATE: Aurora
@@ -22,7 +22,7 @@ progress:
 ## Current Position
 
 - **Current phase**: 01.1 - llama.cpp server lifecycle via CLI (auto start/stop + health/status)
-- **Current plan**: 01.1 plans complete (01.1-03 completed on 2026-03-02)
+- **Current plan**: 01.1 plans complete (01.1-04 completed on 2026-03-03)
 - **Status**: Phase 01.1 complete
 - **Overall progress**: 2/7 phases complete
 - **Progress bar**: [##-----] 28%
@@ -66,6 +66,8 @@ progress:
 - [Phase 01.1]: Model lifecycle commands now provide deterministic text/JSON outputs via ServerLifecycleService delegation.
 - [Phase 01.1]: Non-interactive runtime ownership actions now require explicit --yes/--force overrides to avoid unsafe implicit choices.
 - [Phase 01.1]: Setup wizard now validates readiness through ensure_runtime_for_inference with a missing-model bootstrap callback.
+- [Phase 01.1]: LifecycleHealth now includes pid and uptime_seconds across crashed/stopped/diagnostic/healthy health responses.
+- [Phase 01.1]: model health text/json outputs now expose the same pid/uptime contract with regression coverage.
 
 ### TODOs
 - Plan and execute Phase 2 (`Vault Knowledge Base Lifecycle`).
@@ -76,10 +78,10 @@ progress:
 
 ## Session Continuity
 
-- **Last action**: Executed `01.1-03-PLAN.md`, committed TDD CLI lifecycle slices, and wrote `01.1-03-SUMMARY.md`.
+- **Last action**: Executed `01.1-04-PLAN.md`, committed runtime/CLI health contract parity changes, and wrote `01.1-04-SUMMARY.md`.
 - **Next command**: `/gsd:plan-phase 02`
-- **If resuming later**: Open `.planning/phases/01.1-llama-cpp-server-lifecycle-via-cli-auto-start-stop-health-status/01.1-03-SUMMARY.md`, then begin Phase 2 planning.
+- **If resuming later**: Open `.planning/phases/01.1-llama-cpp-server-lifecycle-via-cli-auto-start-stop-health-status/01.1-04-SUMMARY.md`, then begin Phase 2 planning.
 
 ---
 *Initialized: 2026-03-01*
-*Last updated: 2026-03-03 after executing plan 01.1-03*
+*Last updated: 2026-03-03 after executing plan 01.1-04*
