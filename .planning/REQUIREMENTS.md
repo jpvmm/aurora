@@ -32,7 +32,7 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Assistant CLI
 
 - [x] **CLI-01**: User can invoke Aurora globally from any terminal directory after installation.
-- [ ] **CLI-02**: User can use dedicated CLI commands for ingest, update, delete, ask, and status operations.
+- [x] **CLI-02**: User can use dedicated CLI commands for ingest, update, delete, ask, and status operations.
 - [ ] **CLI-03**: Assistant replies in pt-BR by default and only changes language when user requests.
 - [x] **CLI-04**: User can run a `doctor` command to validate local runtime dependencies and model readiness.
 
@@ -100,7 +100,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | MEM-03 | Phase 4 | Pending |
 | MEM-04 | Phase 4 | Pending |
 | CLI-01 | Phase 1 | Complete |
-| CLI-02 | Phase 5 | Pending |
+| CLI-02 | Phase 5 | Complete |
 | CLI-03 | Phase 3 | Pending |
 | CLI-04 | Phase 5 | Complete |
 | MOD-01 | Phase 1 | Complete |

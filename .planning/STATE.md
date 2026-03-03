@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: unknown
-last_updated: "2026-03-02T23:52:13.783Z"
+status: in_progress
+last_updated: "2026-03-03T00:01:09.085Z"
 progress:
   total_phases: 2
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 8
-  completed_plans: 7
+  completed_plans: 8
 ---
 
 # STATE: Aurora
@@ -16,23 +16,23 @@ progress:
 ## Project Reference
 
 - **Core value**: Total privacy with useful long-term memory over the vault, without external services.
-- **Current focus**: Phase 01.1 plan 02 completed; proceed to CLI command integration in plan 03.
+- **Current focus**: Phase 01.1 complete; prepare planning/execution for Phase 2 (Vault Knowledge Base Lifecycle).
 - **Depth mode**: comprehensive
 
 ## Current Position
 
 - **Current phase**: 01.1 - llama.cpp server lifecycle via CLI (auto start/stop + health/status)
-- **Current plan**: 01.1-03-PLAN.md pending execution (01.1-02 completed on 2026-03-02)
-- **Status**: Phase 01.1 in progress
-- **Overall progress**: 1/7 phases complete
-- **Progress bar**: [#------] 14%
+- **Current plan**: 01.1 plans complete (01.1-03 completed on 2026-03-02)
+- **Status**: Phase 01.1 complete
+- **Overall progress**: 2/7 phases complete
+- **Progress bar**: [##-----] 28%
 
 ## Performance Metrics
 
 - **v1 requirements total**: 24
 - **Requirements mapped**: 24
 - **Coverage status**: 100% mapped
-- **Completed phases**: 1
+- **Completed phases**: 2
 - **Open blockers**: 0
 
 ## Accumulated Context
@@ -63,19 +63,23 @@ progress:
 - [Phase 01.1]: Lifecycle startup owns endpoint conflict handling by iterating deterministic candidate ports and persisting the first successful endpoint.
 - [Phase 01.1]: Crash recovery is intentionally bounded to one automatic restart to avoid hidden restart loops.
 - [Phase 01.1]: Inference guard exposes a model bootstrap callback that can persist a model once and retry startup deterministically.
+- [Phase 01.1]: Model lifecycle commands now provide deterministic text/JSON outputs via ServerLifecycleService delegation.
+- [Phase 01.1]: Non-interactive runtime ownership actions now require explicit --yes/--force overrides to avoid unsafe implicit choices.
+- [Phase 01.1]: Setup wizard now validates readiness through ensure_runtime_for_inference with a missing-model bootstrap callback.
 
 ### TODOs
-- Execute plan `01.1-03` (CLI model lifecycle commands and integration with runtime auto-start guard).
+- Plan and execute Phase 2 (`Vault Knowledge Base Lifecycle`).
+- Run verification/UAT for phase 01.1 lifecycle command UX (`model start|stop|status|health` and setup auto-start flow).
 
 ### Blockers
 - None.
 
 ## Session Continuity
 
-- **Last action**: Executed `01.1-02-PLAN.md`, committed TDD lifecycle slices, and wrote `01.1-02-SUMMARY.md`.
-- **Next command**: `/gsd:execute-phase 01.1`
-- **If resuming later**: Open `.planning/phases/01.1-llama-cpp-server-lifecycle-via-cli-auto-start-stop-health-status/01.1-02-SUMMARY.md`, then continue with `01.1-03-PLAN.md`.
+- **Last action**: Executed `01.1-03-PLAN.md`, committed TDD CLI lifecycle slices, and wrote `01.1-03-SUMMARY.md`.
+- **Next command**: `/gsd:plan-phase 02`
+- **If resuming later**: Open `.planning/phases/01.1-llama-cpp-server-lifecycle-via-cli-auto-start-stop-health-status/01.1-03-SUMMARY.md`, then begin Phase 2 planning.
 
 ---
 *Initialized: 2026-03-01*
-*Last updated: 2026-03-02 after executing plan 01.1-02*
+*Last updated: 2026-03-03 after executing plan 01.1-03*
