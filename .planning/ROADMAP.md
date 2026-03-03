@@ -52,7 +52,7 @@
 Plans:
 - [x] `01.1-01-PLAN.md` - Build global lifecycle state + cross-terminal lock foundation for managed runtime ownership. (`01.1-01-SUMMARY.md`, 2026-03-02)
 - [x] `01.1-02-PLAN.md` - Implement runtime lifecycle service (background start/stop, external reuse, port fallback, crash restart, health/status payloads). (`01.1-02-SUMMARY.md`, 2026-03-02)
-- [ ] `01.1-03-PLAN.md` - Expose `aurora model start|stop|status|health`, JSON/text UX, model-change confirmations, and auto-start bootstrap integration.
+- [x] `01.1-03-PLAN.md` - Expose `aurora model start|stop|status|health`, JSON/text UX, model-change confirmations, and auto-start bootstrap integration. (`01.1-03-SUMMARY.md`, 2026-03-03)
 
 ### Phase 2: Vault Knowledge Base Lifecycle
 **Goal**: User can build and maintain a scoped, current knowledge base from Obsidian markdown files.
@@ -142,4 +142,4 @@ Orphans: 0
 Duplicates: 0
 
 ---
-*Last updated: 2026-03-02 after executing plan 01.1-02*
+*Last updated: 2026-03-03 after executing plan 01.1-03*
