@@ -89,6 +89,8 @@ class LifecycleHealth:
     port: int
     model_id: str
     ownership: ServerOwnership | None
+    pid: int | None
+    uptime_seconds: int | None
     category: str | None
     message: str
     recovery_commands: tuple[str, ...] = ()
@@ -100,6 +102,8 @@ class LifecycleHealth:
             "port": self.port,
             "model_id": self.model_id,
             "ownership": self.ownership,
+            "pid": self.pid,
+            "uptime_seconds": self.uptime_seconds,
             "category": self.category,
             "message": self.message,
             "recovery_commands": list(self.recovery_commands),
@@ -289,6 +293,8 @@ class ServerLifecycleService:
                 port=status.port,
                 model_id=status.model_id,
                 ownership=status.ownership,
+                pid=status.pid,
+                uptime_seconds=status.uptime_seconds,
                 category=status.error_category,
                 message=status.message or "Runtime em estado de falha.",
                 recovery_commands=status.recovery_commands,
@@ -301,6 +307,8 @@ class ServerLifecycleService:
                 port=status.port,
                 model_id=status.model_id,
                 ownership=status.ownership,
+                pid=status.pid,
+                uptime_seconds=status.uptime_seconds,
                 category=error.category,
                 message=error.message,
                 recovery_commands=error.recovery_commands,
@@ -316,6 +324,8 @@ class ServerLifecycleService:
                 port=status.port,
                 model_id=status.model_id,
                 ownership=status.ownership,
+                pid=status.pid,
+                uptime_seconds=status.uptime_seconds,
                 category=error.category,
                 message=error.message,
                 recovery_commands=error.recovery_commands,
@@ -328,6 +338,8 @@ class ServerLifecycleService:
                 port=status.port,
                 model_id=status.model_id,
                 ownership=status.ownership,
+                pid=status.pid,
+                uptime_seconds=status.uptime_seconds,
                 category=diagnostic.category,
                 message=diagnostic.message,
                 recovery_commands=diagnostic.recovery_commands,
@@ -339,6 +351,8 @@ class ServerLifecycleService:
             port=status.port,
             model_id=status.model_id,
             ownership=status.ownership,
+            pid=status.pid,
+            uptime_seconds=status.uptime_seconds,
             category=None,
             message="Runtime pronto para inferencia.",
             recovery_commands=(),
