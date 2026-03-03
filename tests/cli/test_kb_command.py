@@ -45,34 +45,38 @@ class FakeKBService:
 
     def run_ingest(self, *, vault_path: str, dry_run: bool, on_progress):
         self.ingest_calls.append({"vault_path": vault_path, "dry_run": dry_run})
-        on_progress(
-            "scan",
-            KBOperationCounters(read=4, indexed=0, updated=0, removed=0, skipped=0, errors=0),
-        )
+        if on_progress is not None:
+            on_progress(
+                "scan",
+                KBOperationCounters(read=4, indexed=0, updated=0, removed=0, skipped=0, errors=0),
+            )
         return _summary(operation="ingest", dry_run=dry_run)
 
     def run_update(self, *, dry_run: bool, verify_hash: bool, on_progress):
         self.update_calls.append({"dry_run": dry_run, "verify_hash": verify_hash})
-        on_progress(
-            "delta",
-            KBOperationCounters(read=4, indexed=1, updated=1, removed=1, skipped=1, errors=0),
-        )
+        if on_progress is not None:
+            on_progress(
+                "delta",
+                KBOperationCounters(read=4, indexed=1, updated=1, removed=1, skipped=1, errors=0),
+            )
         return _summary(operation="update", dry_run=dry_run)
 
     def run_delete(self, *, on_progress):
         self.delete_calls.append({})
-        on_progress(
-            "delete",
-            KBOperationCounters(read=0, indexed=0, updated=0, removed=2, skipped=0, errors=0),
-        )
+        if on_progress is not None:
+            on_progress(
+                "delete",
+                KBOperationCounters(read=0, indexed=0, updated=0, removed=2, skipped=0, errors=0),
+            )
         return _summary(operation="delete")
 
     def run_rebuild(self, *, dry_run: bool, on_progress):
         self.rebuild_calls.append({"dry_run": dry_run})
-        on_progress(
-            "rebuild",
-            KBOperationCounters(read=4, indexed=4, updated=0, removed=2, skipped=0, errors=0),
-        )
+        if on_progress is not None:
+            on_progress(
+                "rebuild",
+                KBOperationCounters(read=4, indexed=4, updated=0, removed=2, skipped=0, errors=0),
+            )
         return _summary(operation="rebuild", dry_run=dry_run)
 
 

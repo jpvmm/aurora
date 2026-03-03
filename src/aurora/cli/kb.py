@@ -4,8 +4,8 @@ import json
 
 import typer
 
-from aurora.kb.contracts import KBOperationCounters, KBOperationSummary, KBScopeConfig
-from aurora.runtime.settings import load_settings
+from aurora.kb.contracts import KBFileDiagnostic, KBOperationCounters, KBOperationSummary
+from aurora.kb.service import KBService, KBServiceError
 
 
 kb_app = typer.Typer(
@@ -28,8 +28,19 @@ def kb_ingest_command(
         help="Mostra escopo e contadores sem aplicar indexacao.",
     ),
 ) -> None:
-    summary = _build_summary(operation="ingest", vault_path=vault_path, dry_run=dry_run)
-    _fail_fast_not_ready(operation="ingest", summary=summary, json_output=json_output)
+    service = KBService()
+    progress = None if json_output else _render_progress
+    try:
+        summary = service.run_ingest(
+            vault_path=vault_path,
+            dry_run=dry_run,
+            on_progress=progress,
+        )
+    except KBServiceError as error:
+        _render_service_error(error=error, json_output=json_output)
+        raise typer.Exit(code=1) from error
+
+    _render_summary(summary=summary, json_output=json_output)
 
 
 @kb_app.command("update")
@@ -44,9 +55,25 @@ def kb_update_command(
         "--dry-run",
         help="Mostra alteracoes planejadas sem atualizar o indice.",
     ),
+    verify_hash: bool = typer.Option(
+        False,
+        "--verify-hash",
+        help="Usa hash para refinar deteccao de alteracoes em notas.",
+    ),
 ) -> None:
-    summary = _build_summary(operation="update", dry_run=dry_run)
-    _fail_fast_not_ready(operation="update", summary=summary, json_output=json_output)
+    service = KBService()
+    progress = None if json_output else _render_progress
+    try:
+        summary = service.run_update(
+            dry_run=dry_run,
+            verify_hash=verify_hash,
+            on_progress=progress,
+        )
+    except KBServiceError as error:
+        _render_service_error(error=error, json_output=json_output)
+        raise typer.Exit(code=1) from error
+
+    _render_summary(summary=summary, json_output=json_output)
 
 
 @kb_app.command("delete")
@@ -57,8 +84,15 @@ def kb_delete_command(
         help="Renderiza resposta estruturada em JSON.",
     ),
 ) -> None:
-    summary = _build_summary(operation="delete", dry_run=False)
-    _fail_fast_not_ready(operation="delete", summary=summary, json_output=json_output)
+    service = KBService()
+    progress = None if json_output else _render_progress
+    try:
+        summary = service.run_delete(on_progress=progress)
+    except KBServiceError as error:
+        _render_service_error(error=error, json_output=json_output)
+        raise typer.Exit(code=1) from error
+
+    _render_summary(summary=summary, json_output=json_output, index_only=True)
 
 
 @kb_app.command("rebuild")
@@ -74,63 +108,97 @@ def kb_rebuild_command(
         help="Mostra escopo e contadores previstos sem reconstruir o indice.",
     ),
 ) -> None:
-    summary = _build_summary(operation="rebuild", dry_run=dry_run)
-    _fail_fast_not_ready(operation="rebuild", summary=summary, json_output=json_output)
+    service = KBService()
+    progress = None if json_output else _render_progress
+    try:
+        summary = service.run_rebuild(dry_run=dry_run, on_progress=progress)
+    except KBServiceError as error:
+        _render_service_error(error=error, json_output=json_output)
+        raise typer.Exit(code=1) from error
+
+    _render_summary(summary=summary, json_output=json_output)
 
 
-def _build_summary(
-    *,
-    operation: str,
-    dry_run: bool,
-    vault_path: str | None = None,
-) -> KBOperationSummary:
-    settings = load_settings()
-    effective_vault = (vault_path or settings.kb_vault_path).strip() or "<vault-nao-configurado>"
-    scope = KBScopeConfig(
-        vault_root=effective_vault,
-        include=settings.kb_include,
-        exclude=settings.kb_exclude,
-        default_excludes=settings.kb_default_excludes,
-    )
-    counters = KBOperationCounters(read=0, indexed=0, updated=0, removed=0, skipped=0, errors=1)
-    return KBOperationSummary(
-        operation=operation,
-        dry_run=dry_run,
-        duration_seconds=0.0,
-        counters=counters,
-        scope=scope,
-        diagnostics=(),
+def _render_progress(stage: str, counters: KBOperationCounters) -> None:
+    typer.echo(
+        "etapa: "
+        f"{stage} "
+        f"read={counters.read} "
+        f"indexed={counters.indexed} "
+        f"updated={counters.updated} "
+        f"removed={counters.removed} "
+        f"skipped={counters.skipped} "
+        f"errors={counters.errors}"
     )
 
 
-def _fail_fast_not_ready(
+def _render_summary(
     *,
-    operation: str,
     summary: KBOperationSummary,
     json_output: bool,
+    index_only: bool = False,
 ) -> None:
-    recovery = (
-        "Revise o escopo global com `aurora config show`.",
-        f"Tente novamente quando o servico KB da Fase 2 estiver habilitado: `aurora kb {operation}`.",
-    )
-    diagnostic = {
-        "categoria": "kb_service_unavailable",
-        "mensagem": "Comando KB ainda nao conectado ao servico de indexacao desta fase.",
-        "fase": "Fase 2 - Vault Knowledge Base Lifecycle",
-        "recuperacao": list(recovery),
-        "summary": summary.model_dump(mode="json"),
-    }
-
     if json_output:
-        typer.echo(json.dumps(diagnostic, ensure_ascii=False, sort_keys=True))
-    else:
-        typer.echo("Operacao KB indisponivel no momento.")
-        typer.echo(f"categoria: {diagnostic['categoria']}")
-        typer.echo(f"fase: {diagnostic['fase']}")
-        typer.echo(f"operacao: {summary.operation}")
-        for step in recovery:
-            typer.echo(f"recuperacao: {step}")
-    raise typer.Exit(code=1)
+        typer.echo(summary.to_json())
+        return
+
+    typer.echo(f"operacao: {summary.operation}")
+    typer.echo(f"dry-run: {'sim' if summary.dry_run else 'nao'}")
+    if index_only:
+        typer.echo("modo: index-only")
+    typer.echo(f"duracao_s: {summary.duration_seconds:.3f}")
+    typer.echo(f"vault: {summary.scope.vault_root}")
+    typer.echo(
+        "effective_scope: "
+        f"include={list(summary.scope.include)} "
+        f"exclude={list(summary.scope.exclude)}"
+    )
+    typer.echo(
+        "totais: "
+        f"read={summary.counters.read} "
+        f"indexed={summary.counters.indexed} "
+        f"updated={summary.counters.updated} "
+        f"removed={summary.counters.removed} "
+        f"skipped={summary.counters.skipped} "
+        f"errors={summary.counters.errors}"
+    )
+    _render_diagnostics(summary.diagnostics)
+
+
+def _render_diagnostics(diagnostics: tuple[KBFileDiagnostic, ...]) -> None:
+    for diagnostic in diagnostics:
+        typer.echo(
+            "diagnostico: "
+            f"path={diagnostic.path} "
+            f"category={diagnostic.category} "
+            f"recovery_hint={diagnostic.recovery_hint}"
+        )
+
+
+def _render_service_error(*, error: KBServiceError, json_output: bool) -> None:
+    if json_output:
+        payload = {
+            "ok": False,
+            "category": error.category,
+            "message": error.message,
+            "diagnostics": [
+                {
+                    "path": item.path,
+                    "category": item.category,
+                    "recovery_hint": item.recovery_hint,
+                }
+                for item in error.diagnostics
+            ],
+            "recovery_commands": list(error.recovery_commands),
+        }
+        typer.echo(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+        return
+
+    typer.echo(f"erro: {error.message}")
+    typer.echo(f"categoria: {error.category}")
+    _render_diagnostics(error.diagnostics)
+    for command in error.recovery_commands:
+        typer.echo(f"recuperacao: {command}")
 
 
 __all__ = ["kb_app"]
