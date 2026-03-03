@@ -20,31 +20,35 @@ def test_setup_wizard_retries_until_runtime_validation_passes(
     monkeypatch.setenv("AURORA_CONFIG_DIR", str(tmp_path / "config"))
     setup_module = importlib.import_module("aurora.cli.setup")
 
+    healthy_validation = EnsureRuntimeResult(
+        settings=RuntimeSettings(),
+        status=LifecycleStatus(
+            lifecycle_state="running",
+            ownership="managed",
+            endpoint_url="http://127.0.0.1:8080",
+            port=8080,
+            model_id="Qwen3-8B-Q8_0",
+            pid=2100,
+            process_group_id=2100,
+            uptime_seconds=2,
+            ready=True,
+        ),
+        health=LifecycleHealth(
+            ok=True,
+            endpoint_url="http://127.0.0.1:8080",
+            port=8080,
+            model_id="Qwen3-8B-Q8_0",
+            ownership="managed",
+            category=None,
+            message="ok",
+        ),
+    )
+    assert healthy_validation.health.pid == healthy_validation.status.pid
+    assert healthy_validation.health.uptime_seconds == healthy_validation.status.uptime_seconds
+
     validations: list[Exception | EnsureRuntimeResult] = [
         build_runtime_error("timeout", detail="Servidor ainda carregando"),
-        EnsureRuntimeResult(
-            settings=RuntimeSettings(),
-            status=LifecycleStatus(
-                lifecycle_state="running",
-                ownership="managed",
-                endpoint_url="http://127.0.0.1:8080",
-                port=8080,
-                model_id="Qwen3-8B-Q8_0",
-                pid=2100,
-                process_group_id=2100,
-                uptime_seconds=2,
-                ready=True,
-            ),
-            health=LifecycleHealth(
-                ok=True,
-                endpoint_url="http://127.0.0.1:8080",
-                port=8080,
-                model_id="Qwen3-8B-Q8_0",
-                ownership="managed",
-                category=None,
-                message="ok",
-            ),
-        ),
+        healthy_validation,
     ]
     persisted: list[tuple[str | None, str | None, str | None]] = []
 
@@ -157,7 +161,7 @@ def test_setup_wizard_auto_start_path_uses_inference_guard(
 
     def fake_ensure_runtime_for_inference(**kwargs):
         calls.append(kwargs)
-        return EnsureRuntimeResult(
+        healthy_result = EnsureRuntimeResult(
             settings=RuntimeSettings(),
             status=LifecycleStatus(
                 lifecycle_state="running",
@@ -180,6 +184,9 @@ def test_setup_wizard_auto_start_path_uses_inference_guard(
                 message="ok",
             ),
         )
+        assert healthy_result.health.pid == healthy_result.status.pid
+        assert healthy_result.health.uptime_seconds == healthy_result.status.uptime_seconds
+        return healthy_result
 
     monkeypatch.setattr(setup_module, "model_set_command", lambda **_: None)
     monkeypatch.setattr(
@@ -230,7 +237,7 @@ def test_setup_wizard_bootstrap_missing_model_persists_and_continues(
                 telemetry_enabled=False,
             )
         )
-        return EnsureRuntimeResult(
+        healthy_result = EnsureRuntimeResult(
             settings=RuntimeSettings(model_id="Qwen3-8B-Q8_0"),
             status=LifecycleStatus(
                 lifecycle_state="running",
@@ -253,6 +260,9 @@ def test_setup_wizard_bootstrap_missing_model_persists_and_continues(
                 message="ok",
             ),
         )
+        assert healthy_result.health.pid == healthy_result.status.pid
+        assert healthy_result.health.uptime_seconds == healthy_result.status.uptime_seconds
+        return healthy_result
 
     monkeypatch.setattr(setup_module, "model_set_command", fake_model_set_command)
     monkeypatch.setattr(
