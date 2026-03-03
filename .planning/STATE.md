@@ -16,13 +16,13 @@ progress:
 ## Project Reference
 
 - **Core value**: Total privacy with useful long-term memory over the vault, without external services.
-- **Current focus**: Phase 2 execution in progress after completing plans 02-02 and 02-03 core lifecycle foundations.
+- **Current focus**: Phase 2 execution in progress after completing plan 02-02 scoped discovery and preprocessing foundations.
 - **Depth mode**: comprehensive
 
 ## Current Position
 
 - **Current phase**: 2 - Vault Knowledge Base Lifecycle
-- **Current plan**: 02-03 complete; 02-04 next
+- **Current plan**: 02-02 complete; 02-04 next
 - **Status**: Phase 2 in progress (3/4 plans complete)
 - **Overall progress**: 2/7 phases complete
 - **Progress bar**: [##-----] 28%
@@ -72,6 +72,7 @@ progress:
 - [Phase 2-vault-knowledge-base-lifecycle]: Locked KB lifecycle direction: `aurora kb` namespace, scoped indexing with exclude precedence, templater pre-processing, deterministic incremental update semantics, and privacy-safe progress logging.
 - [Phase 02-vault-knowledge-base-lifecycle]: KB contracts use frozen Pydantic models with normalized tuple fields to keep deterministic dumps. — Ensures consistent text/json contract payloads across future KB command wiring.
 - [Phase 02-vault-knowledge-base-lifecycle]: Unwired KB commands fail fast with pt-BR actionable diagnostics while still emitting shared summary payload for --json. — Locks UX contract now so service integration can change internals without changing command behavior.
+- [Phase 02-vault-knowledge-base-lifecycle]: Scope rules validate include/exclude patterns against vault boundaries using Path.resolve and is_relative_to.
 - [Phase 02]: Manifest records include size+mtime+optional hash with strict schema validation and rebuild guidance.
 - [Phase 02]: QMD adapter now commits manifest only after successful backend apply/remove/rebuild operations.
 - [Phase 02]: Delta classification defaults to mtime+size and uses hash refinement only in strict mode.
@@ -87,10 +88,10 @@ progress:
 
 ## Session Continuity
 
-- **Last action**: Executed `02-03-PLAN.md` and created `02-03-SUMMARY.md`.
+- **Last action**: Executed `02-02-PLAN.md` and created `02-02-SUMMARY.md`.
 - **Next command**: `/gsd:execute-phase 2`
-- **If resuming later**: Open `.planning/phases/02-vault-knowledge-base-lifecycle/02-03-SUMMARY.md` then continue with `02-04-PLAN.md`.
+- **If resuming later**: Open `.planning/phases/02-vault-knowledge-base-lifecycle/02-02-SUMMARY.md` then continue with `02-04-PLAN.md`.
 
 ---
 *Initialized: 2026-03-01*
-*Last updated: 2026-03-03 after executing phase 02 plan 03*
+*Last updated: 2026-03-03 after executing phase 02 plan 02*
