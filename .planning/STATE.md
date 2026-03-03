@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-last_updated: "2026-03-03T20:47:45.716Z"
+last_updated: "2026-03-03T21:15:05Z"
 progress:
   total_phases: 2
   completed_phases: 2
-  total_plans: 9
-  completed_plans: 9
+  total_plans: 10
+  completed_plans: 10
 ---
 
 # STATE: Aurora
@@ -16,13 +16,13 @@ progress:
 ## Project Reference
 
 - **Core value**: Total privacy with useful long-term memory over the vault, without external services.
-- **Current focus**: Phase 01.1 complete; prepare planning/execution for Phase 2 (Vault Knowledge Base Lifecycle).
+- **Current focus**: Phase 01.1 complete with verification gap closed; prepare planning/execution for Phase 2 (Vault Knowledge Base Lifecycle).
 - **Depth mode**: comprehensive
 
 ## Current Position
 
 - **Current phase**: 01.1 - llama.cpp server lifecycle via CLI (auto start/stop + health/status)
-- **Current plan**: 01.1 plans complete (01.1-04 completed on 2026-03-03)
+- **Current plan**: 01.1 plans complete (01.1-05 completed on 2026-03-03)
 - **Status**: Phase 01.1 complete
 - **Overall progress**: 2/7 phases complete
 - **Progress bar**: [##-----] 28%
@@ -68,6 +68,7 @@ progress:
 - [Phase 01.1]: Setup wizard now validates readiness through ensure_runtime_for_inference with a missing-model bootstrap callback.
 - [Phase 01.1]: LifecycleHealth now includes pid and uptime_seconds across crashed/stopped/diagnostic/healthy health responses.
 - [Phase 01.1]: model health text/json outputs now expose the same pid/uptime contract with regression coverage.
+- [Phase 01.1-llama-cpp-server-lifecycle-via-cli-auto-start-stop-health-status]: Kept explicit pid/uptime parity assertions in setup wizard tests to prevent future LifecycleHealth contract drift. — Ensures test fixtures fail fast when status/health process metadata contracts diverge.
 
 ### TODOs
 - Plan and execute Phase 2 (`Vault Knowledge Base Lifecycle`).
@@ -78,10 +79,10 @@ progress:
 
 ## Session Continuity
 
-- **Last action**: Executed `01.1-04-PLAN.md`, committed runtime/CLI health contract parity changes, and wrote `01.1-04-SUMMARY.md`.
+- **Last action**: Executed `01.1-05-PLAN.md`, aligned setup-wizard LifecycleHealth fixtures with pid/uptime parity, reran broad runtime/CLI regressions, and wrote `01.1-05-SUMMARY.md`.
 - **Next command**: `/gsd:plan-phase 02`
-- **If resuming later**: Open `.planning/phases/01.1-llama-cpp-server-lifecycle-via-cli-auto-start-stop-health-status/01.1-04-SUMMARY.md`, then begin Phase 2 planning.
+- **If resuming later**: Open `.planning/phases/01.1-llama-cpp-server-lifecycle-via-cli-auto-start-stop-health-status/01.1-05-SUMMARY.md`, then begin Phase 2 planning.
 
 ---
 *Initialized: 2026-03-01*
-*Last updated: 2026-03-03 after executing plan 01.1-04*
+*Last updated: 2026-03-03 after executing plan 01.1-05*
