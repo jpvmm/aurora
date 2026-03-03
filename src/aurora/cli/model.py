@@ -319,6 +319,10 @@ def _render_health(health: LifecycleHealth, *, json_output: bool) -> None:
     typer.echo(f"- porta: {health.port}")
     typer.echo(f"- modelo: {health.model_id}")
     typer.echo(f"- ownership: {health.ownership or 'none'}")
+    typer.echo(f"- pid: {health.pid if health.pid is not None else '-'}")
+    typer.echo(
+        f"- uptime(s): {health.uptime_seconds if health.uptime_seconds is not None else '-'}"
+    )
     if health.category:
         typer.echo(f"- categoria: {health.category}")
     typer.echo(f"- mensagem: {health.message}")
