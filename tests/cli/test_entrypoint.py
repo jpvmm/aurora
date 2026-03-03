@@ -135,15 +135,19 @@ def test_kb_ingest_requires_explicit_vault_path() -> None:
 
 
 @pytest.mark.parametrize(
-    ("command", "has_dry_run"),
+    ("command", "has_dry_run", "has_verify_hash"),
     [
-        ("ingest", True),
-        ("update", True),
-        ("delete", False),
-        ("rebuild", True),
+        ("ingest", True, False),
+        ("update", True, True),
+        ("delete", False, False),
+        ("rebuild", True, False),
     ],
 )
-def test_kb_commands_expose_json_and_optional_dry_run(command: str, has_dry_run: bool) -> None:
+def test_kb_commands_expose_json_and_optional_dry_run(
+    command: str,
+    has_dry_run: bool,
+    has_verify_hash: bool,
+) -> None:
     app_module = importlib.import_module("aurora.cli.app")
     result = RUNNER.invoke(app_module.app, ["kb", command, "--help"], prog_name="aurora")
 
@@ -153,23 +157,16 @@ def test_kb_commands_expose_json_and_optional_dry_run(command: str, has_dry_run:
         assert "--dry-run" in result.output
     else:
         assert "--dry-run" not in result.output
+    if has_verify_hash:
+        assert "--verify-hash" in result.output
+    else:
+        assert "--verify-hash" not in result.output
 
 
-@pytest.mark.parametrize(
-    "args",
-    [
-        ["ingest", "/tmp/vault"],
-        ["update"],
-        ["delete"],
-        ["rebuild"],
-    ],
-)
-def test_kb_commands_fail_fast_with_actionable_ptbr_diagnostics(args: list[str]) -> None:
+def test_kb_update_help_mentions_hash_precision_behavior() -> None:
     app_module = importlib.import_module("aurora.cli.app")
-    result = RUNNER.invoke(app_module.app, ["kb", *args], prog_name="aurora")
+    result = RUNNER.invoke(app_module.app, ["kb", "update", "--help"], prog_name="aurora")
 
-    assert result.exit_code == 1
+    assert result.exit_code == 0
     normalized = result.output.lower()
-    assert "categoria: kb_service_unavailable" in normalized
-    assert "fase 2" in normalized
-    assert "recuperacao:" in normalized
+    assert "--verify-hash" in normalized
