@@ -10,9 +10,9 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Knowledge Base
 
 - [x] **KB-01**: User can ingest an Obsidian vault path containing `.md` files via CLI command.
-- [ ] **KB-02**: User can update index incrementally for changed notes without full reingestion.
-- [ ] **KB-03**: User can delete notes from the knowledge base via CLI command.
-- [ ] **KB-04**: User can trigger full rebuild of the knowledge base via CLI command.
+- [x] **KB-02**: User can update index incrementally for changed notes without full reingestion.
+- [x] **KB-03**: User can delete notes from the knowledge base via CLI command.
+- [x] **KB-04**: User can trigger full rebuild of the knowledge base via CLI command.
 - [x] **KB-05**: User can view ingestion progress and final stats in readable CLI logs.
 
 ### Retrieval
@@ -87,9 +87,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | KB-01 | Phase 2 | Complete |
-| KB-02 | Phase 2 | Pending |
-| KB-03 | Phase 2 | Pending |
-| KB-04 | Phase 2 | Pending |
+| KB-02 | Phase 2 | Complete |
+| KB-03 | Phase 2 | Complete |
+| KB-04 | Phase 2 | Complete |
 | KB-05 | Phase 2 | Complete |
 | RET-01 | Phase 3 | Pending |
 | RET-02 | Phase 3 | Pending |
@@ -118,4 +118,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-03-01*
-*Last updated: 2026-03-03 after executing plan 02-01*
+*Last updated: 2026-03-03 after executing plan 02-03*
