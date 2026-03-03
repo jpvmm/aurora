@@ -11,6 +11,8 @@ APP_AUTHOR = "aurora"
 SETTINGS_FILENAME = "settings.json"
 SERVER_STATE_FILENAME = "server-state.json"
 SERVER_LOCK_FILENAME = "server.lock"
+KB_MANIFEST_FILENAME = "kb-manifest.json"
+KB_STATE_FILENAME = "kb-state.json"
 CONFIG_DIR_ENV = "AURORA_CONFIG_DIR"
 
 
@@ -36,6 +38,16 @@ def get_server_state_path() -> Path:
 def get_server_lock_path() -> Path:
     """Return the absolute path for lifecycle transition lock file."""
     return get_config_dir() / SERVER_LOCK_FILENAME
+
+
+def get_kb_manifest_path() -> Path:
+    """Return the absolute path for persisted KB manifest metadata."""
+    return get_config_dir() / KB_MANIFEST_FILENAME
+
+
+def get_kb_state_path() -> Path:
+    """Return the absolute path for persisted KB operation state."""
+    return get_config_dir() / KB_STATE_FILENAME
 
 
 def ensure_config_dir() -> Path:

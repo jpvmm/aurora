@@ -3,8 +3,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from pydantic import ValidationError, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from aurora.kb.contracts import DEFAULT_SCOPE_EXCLUDES
 from aurora.privacy.policy import validate_local_endpoint
 from aurora.runtime.paths import ensure_config_dir, get_settings_path
 
@@ -12,6 +14,10 @@ TELEMETRY_DEFAULTS = {
     "AGNO_TELEMETRY": "false",
     "GRAPHITI_TELEMETRY_ENABLED": "false",
 }
+
+
+class RuntimeSettingsLoadError(ValueError):
+    """Raised when persisted runtime settings cannot be loaded safely."""
 
 
 class RuntimeSettings(BaseSettings):
@@ -22,8 +28,23 @@ class RuntimeSettings(BaseSettings):
     model_source: str = "Qwen/Qwen3-8B-GGUF:Qwen3-8B-Q8_0.gguf"
     local_only: bool = True
     telemetry_enabled: bool = False
+    kb_vault_path: str = ""
+    kb_include: tuple[str, ...] = ()
+    kb_exclude: tuple[str, ...] = ()
+    kb_default_excludes: tuple[str, ...] = DEFAULT_SCOPE_EXCLUDES
 
     model_config = SettingsConfigDict(extra="ignore")
+
+    @field_validator("kb_include", "kb_exclude", mode="before")
+    @classmethod
+    def _normalize_kb_scope_rules(cls, value: object) -> tuple[str, ...]:
+        return _normalize_scope_patterns(field_name="kb_include/exclude", value=value)
+
+    @field_validator("kb_default_excludes", mode="before")
+    @classmethod
+    def _normalize_kb_default_excludes(cls, value: object) -> tuple[str, ...]:
+        normalized = _normalize_scope_patterns(field_name="kb_default_excludes", value=value)
+        return normalized or DEFAULT_SCOPE_EXCLUDES
 
 
 def load_settings() -> RuntimeSettings:
@@ -34,8 +55,11 @@ def load_settings() -> RuntimeSettings:
         _validate_policy(default_settings)
         return default_settings
 
-    payload = json.loads(settings_path.read_text(encoding="utf-8"))
-    settings = RuntimeSettings.model_validate(payload)
+    try:
+        payload = json.loads(settings_path.read_text(encoding="utf-8"))
+        settings = RuntimeSettings.model_validate(payload)
+    except (ValidationError, json.JSONDecodeError, OSError) as error:
+        raise RuntimeSettingsLoadError(_build_load_error_message(settings_path, error)) from error
     _validate_policy(settings)
     return settings
 
@@ -67,3 +91,28 @@ def _write_settings_file(path: Path, settings: RuntimeSettings) -> None:
         sort_keys=True,
     )
     path.write_text(f"{serialized}\n", encoding="utf-8")
+
+
+def _normalize_scope_patterns(*, field_name: str, value: object) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    if isinstance(value, str):
+        raise ValueError(f"{field_name} deve ser uma lista de padrões.")
+    if not isinstance(value, (list, tuple, set)):
+        raise ValueError(f"{field_name} deve ser uma lista de padrões.")
+
+    normalized: set[str] = set()
+    for item in value:
+        text = str(item).strip()
+        if text:
+            normalized.add(text)
+    return tuple(sorted(normalized))
+
+
+def _build_load_error_message(path: Path, error: Exception) -> str:
+    return (
+        f"Falha ao carregar configuracao global em {path}. "
+        f"Detalhe: {error}. "
+        "Recuperacao: ajuste o JSON manualmente ou recrie o arquivo com valores validos "
+        "e execute `aurora config show` para validar."
+    )
