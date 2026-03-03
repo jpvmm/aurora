@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-last_updated: "2026-03-03T22:54:15.674Z"
+last_updated: "2026-03-03T23:09:35Z"
 progress:
   total_phases: 3
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 14
-  completed_plans: 13
+  completed_plans: 14
 ---
 
 # STATE: Aurora
@@ -16,16 +16,16 @@ progress:
 ## Project Reference
 
 - **Core value**: Total privacy with useful long-term memory over the vault, without external services.
-- **Current focus**: Phase 2 execution in progress after completing plan 02-02 scoped discovery and preprocessing foundations.
+- **Current focus**: Phase 2 completed with full KB lifecycle command wiring and regression coverage; Phase 3 is next.
 - **Depth mode**: comprehensive
 
 ## Current Position
 
-- **Current phase**: 2 - Vault Knowledge Base Lifecycle
-- **Current plan**: 02-02 complete; 02-04 next
-- **Status**: Phase 2 in progress (3/4 plans complete)
-- **Overall progress**: 2/7 phases complete
-- **Progress bar**: [##-----] 28%
+- **Current phase**: 3 - Grounded Retrieval Experience
+- **Current plan**: 03-01 next
+- **Status**: Phase 2 complete (4/4 plans complete); ready for Phase 3 planning/execution
+- **Overall progress**: 3/7 phases complete
+- **Progress bar**: [###----] 42%
 
 ## Performance Metrics
 
@@ -78,9 +78,11 @@ progress:
 - [Phase 02]: Delta classification defaults to mtime+size and uses hash refinement only in strict mode.
 - [Phase 02-vault-knowledge-base-lifecycle]: Scanner classifies hidden/system skips from default excludes while keeping deterministic sorted output.
 - [Phase 02-vault-knowledge-base-lifecycle]: Templater preprocessing strips <%...%> variants and reports cleanup metadata without logging raw note content.
+- [Phase 02-vault-knowledge-base-lifecycle]: KBService now orchestrates ingest/update/delete/rebuild with deterministic counters and immutable operation summaries exposed by CLI text/json renderers.
+- [Phase 02-vault-knowledge-base-lifecycle]: Update flow excludes unreadable files from add/update/remove mutation sets, preserving manifest state while emitting privacy-safe path/category/recovery diagnostics.
 
 ### TODOs
-- Execute remaining Phase 2 plan (`02-04`).
+- Plan and execute Phase 3 retrieval workflow (`03-01`).
 - Run verification/UAT for phase 01.1 lifecycle command UX (`model start|stop|status|health` and setup auto-start flow).
 
 ### Blockers
@@ -88,10 +90,10 @@ progress:
 
 ## Session Continuity
 
-- **Last action**: Executed `02-02-PLAN.md` and created `02-02-SUMMARY.md`.
-- **Next command**: `/gsd:execute-phase 2`
-- **If resuming later**: Open `.planning/phases/02-vault-knowledge-base-lifecycle/02-02-SUMMARY.md` then continue with `02-04-PLAN.md`.
+- **Last action**: Executed `02-04-PLAN.md` and created `02-04-SUMMARY.md`.
+- **Next command**: `/gsd:plan-phase 3`
+- **If resuming later**: Open `.planning/phases/02-vault-knowledge-base-lifecycle/02-04-SUMMARY.md` then continue with Phase 3 planning.
 
 ---
 *Initialized: 2026-03-01*
-*Last updated: 2026-03-03 after executing phase 02 plan 02*
+*Last updated: 2026-03-03 after executing phase 02 plan 04*
