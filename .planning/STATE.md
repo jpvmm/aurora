@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-last_updated: "2026-03-03T23:09:35Z"
+last_updated: "2026-03-04T17:55:59Z"
 progress:
   total_phases: 3
-  completed_phases: 3
-  total_plans: 14
-  completed_plans: 14
+  completed_phases: 2
+  total_plans: 16
+  completed_plans: 15
 ---
 
 # STATE: Aurora
@@ -16,16 +16,16 @@ progress:
 ## Project Reference
 
 - **Core value**: Total privacy with useful long-term memory over the vault, without external services.
-- **Current focus**: Phase 2 completed with full KB lifecycle command wiring and regression coverage; Phase 3 is next.
+- **Current focus**: Phase 2 plan 05 completed with concrete QMD backend integration; plan 02-06 verification automation is next.
 - **Depth mode**: comprehensive
 
 ## Current Position
 
-- **Current phase**: 3 - Grounded Retrieval Experience
-- **Current plan**: 03-01 next
-- **Status**: Phase 2 complete (4/4 plans complete); ready for Phase 3 planning/execution
-- **Overall progress**: 3/7 phases complete
-- **Progress bar**: [###----] 42%
+- **Current phase**: 2 - Vault Knowledge Base Lifecycle
+- **Current plan**: 02-06 next
+- **Status**: Phase 2 in progress (5/6 plans complete) with concrete backend transport shipped in 02-05
+- **Overall progress**: 2/7 phases complete
+- **Progress bar**: [##-----] 28%
 
 ## Performance Metrics
 
@@ -80,8 +80,12 @@ progress:
 - [Phase 02-vault-knowledge-base-lifecycle]: Templater preprocessing strips <%...%> variants and reports cleanup metadata without logging raw note content.
 - [Phase 02-vault-knowledge-base-lifecycle]: KBService now orchestrates ingest/update/delete/rebuild with deterministic counters and immutable operation summaries exposed by CLI text/json renderers.
 - [Phase 02-vault-knowledge-base-lifecycle]: Update flow excludes unreadable files from add/update/remove mutation sets, preserving manifest state while emitting privacy-safe path/category/recovery diagnostics.
+- [Phase 02-vault-knowledge-base-lifecycle]: KBService now defaults to QMDCliBackend to remove no-op backend behavior from production lifecycle commands.
+- [Phase 02-vault-knowledge-base-lifecycle]: Adapter/backend contracts now accept KBPreparedNote payloads so cleaned markdown content and metadata drive backend mutations deterministically.
+- [Phase 02-vault-knowledge-base-lifecycle]: QMDCliBackend rejects mismatched cleaned_size metadata before issuing qmd commands to prevent inconsistent backend state.
 
 ### TODOs
+- Execute Phase 2 plan `02-06` (CLI readability + real QMD integration verification automation).
 - Plan and execute Phase 3 retrieval workflow (`03-01`).
 - Run verification/UAT for phase 01.1 lifecycle command UX (`model start|stop|status|health` and setup auto-start flow).
 
@@ -90,10 +94,10 @@ progress:
 
 ## Session Continuity
 
-- **Last action**: Executed `02-04-PLAN.md` and created `02-04-SUMMARY.md`.
-- **Next command**: `/gsd:plan-phase 3`
-- **If resuming later**: Open `.planning/phases/02-vault-knowledge-base-lifecycle/02-04-SUMMARY.md` then continue with Phase 3 planning.
+- **Last action**: Executed `02-05-PLAN.md` and created `02-05-SUMMARY.md`.
+- **Next command**: `/gsd:execute-phase 02-vault-knowledge-base-lifecycle`
+- **If resuming later**: Open `.planning/phases/02-vault-knowledge-base-lifecycle/02-05-SUMMARY.md` then continue with plan `02-06`.
 
 ---
 *Initialized: 2026-03-01*
-*Last updated: 2026-03-03 after executing phase 02 plan 04*
+*Last updated: 2026-03-04 after executing phase 02 plan 05*
