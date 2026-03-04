@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import importlib
 import json
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 from aurora.kb.contracts import KBFileDiagnostic, KBOperationCounters, KBOperationSummary, KBScopeConfig
@@ -14,6 +16,7 @@ from aurora.runtime.settings import RuntimeSettings, save_settings
 
 
 RUNNER = CliRunner()
+ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]|\x1b\].*?\x07")
 
 
 def _summary(*, operation: str, dry_run: bool = False) -> KBOperationSummary:
@@ -42,6 +45,10 @@ def _summary(*, operation: str, dry_run: bool = False) -> KBOperationSummary:
 def _write_note(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
+
+
+def _normalized_output(output: str) -> str:
+    return ANSI_ESCAPE_RE.sub("", output).lower()
 
 
 @dataclass
@@ -203,4 +210,73 @@ def test_update_reports_privacy_safe_read_errors_without_forcing_delete(tmp_path
     assert "category=file_read_error" in output
     assert "aurora kb update" in output
     assert "totais: read=1 indexed=0 updated=0 removed=0 skipped=1 errors=1" in output
+    assert "conteudo sigiloso da nota" not in output
+
+
+@pytest.mark.parametrize(
+    ("command", "expected_operation"),
+    [
+        (["kb", "ingest", "/tmp/vault"], "ingest"),
+        (["kb", "update"], "update"),
+        (["kb", "delete"], "delete"),
+        (["kb", "rebuild"], "rebuild"),
+    ],
+)
+def test_kb_readability_progress_stage_order_and_summary_tokens_for_each_operation(
+    monkeypatch,
+    command: list[str],
+    expected_operation: str,
+) -> None:
+    app_module = importlib.import_module("aurora.cli.app")
+    kb_module = importlib.import_module("aurora.cli.kb")
+    fake_service = FakeKBService()
+    monkeypatch.setattr(kb_module, "KBService", lambda: fake_service)
+
+    result = RUNNER.invoke(app_module.app, command, prog_name="aurora")
+
+    assert result.exit_code == 0
+    output = _normalized_output(result.output)
+    scan_idx = output.find("etapa: scan")
+    preprocess_idx = output.find("etapa: preprocess")
+    done_idx = output.find("etapa: done")
+    assert scan_idx != -1
+    assert preprocess_idx != -1
+    assert done_idx != -1
+    assert scan_idx < preprocess_idx < done_idx
+    assert f"operacao: {expected_operation}" in output
+    assert "duracao_s:" in output
+    assert "effective_scope:" in output
+    assert "totais:" in output
+    assert "conteudo sigiloso da nota" not in output
+
+
+@pytest.mark.parametrize(
+    ("command", "expected_operation"),
+    [
+        (["kb", "ingest", "/tmp/vault", "--json"], "ingest"),
+        (["kb", "update", "--json"], "update"),
+        (["kb", "delete", "--json"], "delete"),
+        (["kb", "rebuild", "--json"], "rebuild"),
+    ],
+)
+def test_kb_json_summary_readability_contract_excludes_transient_progress_lines(
+    monkeypatch,
+    command: list[str],
+    expected_operation: str,
+) -> None:
+    app_module = importlib.import_module("aurora.cli.app")
+    kb_module = importlib.import_module("aurora.cli.kb")
+    fake_service = FakeKBService()
+    monkeypatch.setattr(kb_module, "KBService", lambda: fake_service)
+
+    result = RUNNER.invoke(app_module.app, command, prog_name="aurora")
+
+    assert result.exit_code == 0
+    output = _normalized_output(result.output)
+    assert "etapa:" not in output
+    payload = json.loads(result.output)
+    assert payload["operation"] == expected_operation
+    assert "duration_seconds" in payload
+    assert "scope" in payload
+    assert "counters" in payload
     assert "conteudo sigiloso da nota" not in output
