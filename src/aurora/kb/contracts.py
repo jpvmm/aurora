@@ -78,6 +78,29 @@ class KBFileDiagnostic(BaseModel):
     recovery_hint: str
 
 
+class KBPreparedNote(BaseModel):
+    """Prepared markdown payload forwarded from service into backend operations."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    relative_path: str
+    cleaned_text: str
+    cleaned_size: int = Field(ge=0)
+    templater_tags_removed: int = Field(ge=0)
+
+    @field_validator("relative_path", mode="before")
+    @classmethod
+    def _normalize_relative_path(cls, value: object) -> str:
+        text = str(value).replace("\\", "/").strip()
+        while text.startswith("./"):
+            text = text[2:]
+        if not text or text.startswith("/"):
+            raise ValueError("relative_path deve ser vault-relative.")
+        if ".." in text.split("/"):
+            raise ValueError("relative_path deve permanecer dentro do vault.")
+        return text
+
+
 class KBOperationSummary(BaseModel):
     """Single operation contract for text and JSON renderers."""
 
@@ -105,4 +128,3 @@ class KBOperationSummary(BaseModel):
         """Serialize deterministically for machine output snapshots."""
         payload = self.model_dump(mode="json")
         return json.dumps(payload, ensure_ascii=False, sort_keys=True)
-

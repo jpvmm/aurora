@@ -7,7 +7,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-from aurora.kb.contracts import KBFileDiagnostic, KBOperationCounters, KBOperationSummary, KBScopeConfig
+from aurora.kb.contracts import (
+    KBFileDiagnostic,
+    KBOperationCounters,
+    KBOperationSummary,
+    KBPreparedNote,
+    KBScopeConfig,
+)
 from aurora.kb.delta import KBDelta, KBScanFingerprint, classify_kb_delta
 from aurora.kb.manifest import (
     KBManifest,
@@ -17,7 +23,8 @@ from aurora.kb.manifest import (
     save_kb_manifest,
 )
 from aurora.kb.preprocess import preprocess_markdown
-from aurora.kb.qmd_adapter import QMDAdapter, QMDBackend, QMDBackendResponse
+from aurora.kb.qmd_adapter import QMDAdapter, QMDBackend
+from aurora.kb.qmd_backend import QMDCliBackend
 from aurora.kb.scanner import ScanResult, scan_markdown_files
 from aurora.kb.scope import ScopeConfigurationError, ScopeRules
 from aurora.runtime.settings import RuntimeSettings, load_settings
@@ -39,19 +46,6 @@ class KBServiceError(Exception):
         return self.message
 
 
-class _NoopQMDBackend:
-    """Default local backend placeholder until real index transport lands."""
-
-    def apply(self, paths: tuple[str, ...]) -> QMDBackendResponse:
-        return QMDBackendResponse(ok=True)
-
-    def remove(self, paths: tuple[str, ...]) -> QMDBackendResponse:
-        return QMDBackendResponse(ok=True)
-
-    def rebuild(self, paths: tuple[str, ...]) -> QMDBackendResponse:
-        return QMDBackendResponse(ok=True)
-
-
 class KBService:
     """Service-layer orchestration for ingest/update/delete/rebuild lifecycle commands."""
 
@@ -69,7 +63,7 @@ class KBService:
         self._save_manifest = save_manifest_fn
         self._now_provider = now_provider or (lambda: datetime.now(tz=timezone.utc))
         self._adapter = QMDAdapter(
-            backend=backend or _NoopQMDBackend(),
+            backend=backend or QMDCliBackend(),
             save_manifest=save_manifest_fn,
         )
 
@@ -99,7 +93,7 @@ class KBService:
             errors=0,
         )
 
-        fingerprints, records, diagnostics, errored_paths = self._prepare_scan_records(
+        fingerprints, records, prepared_notes, diagnostics, errored_paths = self._prepare_scan_records(
             vault_root=scope_rules.vault_root,
             indexed_paths=scan.indexed,
             recovery_command="aurora kb ingest <vault_path>",
@@ -135,6 +129,7 @@ class KBService:
                 manifest=manifest,
                 delta=effective_delta,
                 scan_records=records,
+                prepared_notes=prepared_notes,
             )
             self._raise_on_adapter_diagnostics(adapter_result.diagnostics)
             removed_count = len(adapter_result.removed)
@@ -188,7 +183,7 @@ class KBService:
             skipped=len(scan.skipped),
             errors=0,
         )
-        fingerprints, records, diagnostics, errored_paths = self._prepare_scan_records(
+        fingerprints, records, prepared_notes, diagnostics, errored_paths = self._prepare_scan_records(
             vault_root=scope_rules.vault_root,
             indexed_paths=scan.indexed,
             recovery_command="aurora kb update",
@@ -225,6 +220,7 @@ class KBService:
                 manifest=manifest,
                 delta=effective_delta,
                 scan_records=records,
+                prepared_notes=prepared_notes,
             )
             self._raise_on_adapter_diagnostics(adapter_result.diagnostics)
             applied_set = set(adapter_result.applied)
@@ -344,7 +340,7 @@ class KBService:
             skipped=len(scan.skipped),
             errors=0,
         )
-        _, records, diagnostics, errored_paths = self._prepare_scan_records(
+        _, records, prepared_notes, diagnostics, errored_paths = self._prepare_scan_records(
             vault_root=scope_rules.vault_root,
             indexed_paths=scan.indexed,
             recovery_command="aurora kb rebuild",
@@ -370,6 +366,7 @@ class KBService:
                     schema_version=manifest.schema_version,
                 ),
                 records=records,
+                prepared_notes=prepared_notes,
             )
             self._raise_on_adapter_diagnostics(adapter_result.diagnostics)
             indexed_count = len(adapter_result.applied)
@@ -509,9 +506,16 @@ class KBService:
         vault_root: Path,
         indexed_paths: tuple[str, ...],
         recovery_command: str,
-    ) -> tuple[list[KBScanFingerprint], dict[str, KBManifestNoteRecord], tuple[KBFileDiagnostic, ...], set[str]]:
+    ) -> tuple[
+        list[KBScanFingerprint],
+        dict[str, KBManifestNoteRecord],
+        dict[str, KBPreparedNote],
+        tuple[KBFileDiagnostic, ...],
+        set[str],
+    ]:
         fingerprints: list[KBScanFingerprint] = []
         records: dict[str, KBManifestNoteRecord] = {}
+        prepared_notes: dict[str, KBPreparedNote] = {}
         diagnostics: list[KBFileDiagnostic] = []
         errored_paths: set[str] = set()
         indexed_at = self._now_provider().astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
@@ -554,8 +558,14 @@ class KBService:
                 cleaned_size=len(cleaned_bytes),
                 templater_tags_removed=cleaned.cleaned_snippet_count,
             )
+            prepared_notes[relative_path] = KBPreparedNote(
+                relative_path=relative_path,
+                cleaned_text=cleaned.cleaned_text,
+                cleaned_size=len(cleaned_bytes),
+                templater_tags_removed=cleaned.cleaned_snippet_count,
+            )
 
-        return fingerprints, records, tuple(diagnostics), errored_paths
+        return fingerprints, records, prepared_notes, tuple(diagnostics), errored_paths
 
     def _resolve_scoped_paths(
         self,

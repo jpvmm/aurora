@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable, Protocol
 
-from aurora.kb.contracts import KBFileDiagnostic
+from aurora.kb.contracts import KBFileDiagnostic, KBPreparedNote
 from aurora.kb.delta import KBDelta
 from aurora.kb.manifest import KBManifest, KBManifestNoteRecord
 
@@ -38,11 +38,11 @@ class QMDAdapterResult:
 class QMDBackend(Protocol):
     """Minimal backend protocol to isolate Aurora from QMD command drift."""
 
-    def apply(self, paths: tuple[str, ...]) -> QMDBackendResponse: ...
+    def apply(self, notes: tuple[KBPreparedNote, ...]) -> QMDBackendResponse: ...
 
     def remove(self, paths: tuple[str, ...]) -> QMDBackendResponse: ...
 
-    def rebuild(self, paths: tuple[str, ...]) -> QMDBackendResponse: ...
+    def rebuild(self, notes: tuple[KBPreparedNote, ...]) -> QMDBackendResponse: ...
 
 
 class QMDAdapter:
@@ -63,6 +63,7 @@ class QMDAdapter:
         manifest: KBManifest,
         delta: KBDelta,
         scan_records: dict[str, KBManifestNoteRecord],
+        prepared_notes: dict[str, KBPreparedNote],
     ) -> QMDAdapterResult:
         if delta.divergence_detected:
             return self._fail(
@@ -78,7 +79,9 @@ class QMDAdapter:
         applied = tuple(sorted(set((*delta.added, *delta.updated))))
         removed = tuple(sorted(set(delta.removed)))
 
-        missing_records = tuple(path for path in applied if path not in scan_records)
+        missing_records = tuple(
+            path for path in applied if path not in scan_records or path not in prepared_notes
+        )
         if missing_records:
             return self._fail(
                 diagnostics=(
@@ -90,7 +93,12 @@ class QMDAdapter:
                 )
             )
 
-        apply_diagnostics = self._invoke_backend(operation="apply", paths=applied)
+        apply_payload = tuple(prepared_notes[path] for path in applied)
+        apply_diagnostics = self._invoke_backend(
+            operation="apply",
+            paths=applied,
+            notes=apply_payload,
+        )
         if apply_diagnostics:
             return self._fail(diagnostics=apply_diagnostics)
 
@@ -140,9 +148,26 @@ class QMDAdapter:
         *,
         manifest: KBManifest,
         records: dict[str, KBManifestNoteRecord],
+        prepared_notes: dict[str, KBPreparedNote],
     ) -> QMDAdapterResult:
         applied = tuple(sorted(records.keys()))
-        diagnostics = self._invoke_backend(operation="rebuild", paths=applied)
+        missing_records = tuple(path for path in applied if path not in prepared_notes)
+        if missing_records:
+            return self._fail(
+                diagnostics=(
+                    KBFileDiagnostic(
+                        path=missing_records[0],
+                        category="state_mismatch",
+                        recovery_hint="Estado incompleto para rebuild. Execute `aurora kb rebuild`.",
+                    ),
+                )
+            )
+
+        diagnostics = self._invoke_backend(
+            operation="rebuild",
+            paths=applied,
+            notes=tuple(prepared_notes[path] for path in applied),
+        )
         if diagnostics:
             return self._fail(diagnostics=diagnostics)
 
@@ -154,17 +179,23 @@ class QMDAdapter:
             state_mutated=True,
         )
 
-    def _invoke_backend(self, *, operation: str, paths: tuple[str, ...]) -> tuple[KBFileDiagnostic, ...]:
+    def _invoke_backend(
+        self,
+        *,
+        operation: str,
+        paths: tuple[str, ...],
+        notes: tuple[KBPreparedNote, ...] | None = None,
+    ) -> tuple[KBFileDiagnostic, ...]:
         if not paths:
             return ()
 
         try:
             if operation == "apply":
-                response = self._backend.apply(paths)
+                response = self._backend.apply(notes or ())
             elif operation == "remove":
                 response = self._backend.remove(paths)
             elif operation == "rebuild":
-                response = self._backend.rebuild(paths)
+                response = self._backend.rebuild(notes or ())
             else:
                 raise ValueError(f"Operacao de backend desconhecida: {operation}")
         except Exception:
