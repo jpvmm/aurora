@@ -62,9 +62,9 @@ completed: 2026-03-04
 
 Each task was committed atomically through RED/GREEN TDD cycles:
 
-1. `998386b` - `test(02-06): add failing KB CLI readability contract tests` (Task 1 RED)
+1. `998386b` - Task 1 RED (CLI readability contract tests)
 2. `30665a9` - `feat(02-06): implement deterministic KB CLI readability coverage` (Task 1 GREEN)
-3. `86644dc` - `test(02-06): add failing real qmd lifecycle integration tests` (Task 2 RED)
+3. `86644dc` - Task 2 RED (real QMD lifecycle integration tests)
 4. `c0bb303` - `feat(02-06): enforce real qmd lifecycle state transitions` (Task 2 GREEN)
 
 ## Files Created/Modified
