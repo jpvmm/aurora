@@ -194,6 +194,18 @@ class QMDCliBackend:
         *,
         replace_all: bool,
     ) -> QMDBackendResponse | None:
+        for note in notes:
+            expected_size = len(note.cleaned_text.encode("utf-8"))
+            if expected_size != note.cleaned_size:
+                return self._response(
+                    "state_mismatch",
+                    (
+                        "Metadata de conteudo preparada divergente (cleaned_size). "
+                        "Execute `aurora kb rebuild` para reconciliar o estado."
+                    ),
+                    path=note.relative_path,
+                )
+
         self.corpus_dir.mkdir(parents=True, exist_ok=True)
         if replace_all:
             self._clear_corpus()
