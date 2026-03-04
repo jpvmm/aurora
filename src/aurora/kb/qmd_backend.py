@@ -66,9 +66,9 @@ class QMDCliBackend:
             if target.exists():
                 target.unlink()
 
-        bootstrap_error = self._bootstrap_collection()
-        if bootstrap_error is not None:
-            return bootstrap_error
+        refresh_error = self._refresh_collection()
+        if refresh_error is not None:
+            return refresh_error
         return self._run_update()
 
     def rebuild(self, notes: tuple[KBPreparedNote, ...] | tuple[str, ...]) -> QMDBackendResponse:
@@ -82,10 +82,49 @@ class QMDCliBackend:
         write_error = self._write_notes(prepared_notes, replace_all=True)
         if write_error is not None:
             return write_error
-        bootstrap_error = self._bootstrap_collection()
-        if bootstrap_error is not None:
-            return bootstrap_error
+        refresh_error = self._refresh_collection()
+        if refresh_error is not None:
+            return refresh_error
         return self._run_update()
+
+    def _refresh_collection(self) -> QMDBackendResponse | None:
+        remove_error = self._remove_collection()
+        if remove_error is not None:
+            return remove_error
+        return self._bootstrap_collection()
+
+    def _remove_collection(self) -> QMDBackendResponse | None:
+        command = (
+            "qmd",
+            "--index",
+            self.index_name,
+            "collection",
+            "remove",
+            self.collection_name,
+        )
+        try:
+            result = self._run_command(command)
+        except FileNotFoundError:
+            return self._response(
+                "backend_unavailable",
+                "Comando `qmd` nao encontrado. Instale o QMD e valide com `qmd --help`.",
+            )
+
+        if result.returncode == 0:
+            return None
+
+        stderr = (result.stderr or "").lower()
+        if "not found" in stderr or "does not exist" in stderr:
+            return None
+
+        return self._response(
+            "backend_cleanup_failed",
+            (
+                "Falha ao limpar colecao QMD gerenciada. "
+                f"Tente `qmd --index {self.index_name} collection remove {self.collection_name}` "
+                "e depois `aurora kb rebuild`."
+            ),
+        )
 
     def _bootstrap_collection(self) -> QMDBackendResponse | None:
         self.corpus_dir.mkdir(parents=True, exist_ok=True)

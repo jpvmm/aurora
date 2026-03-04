@@ -58,5 +58,6 @@ def test_real_qmd_lifecycle_ingest_update_delete_rebuild(qmd_integration_env) ->
     assert "operacao: rebuild" in rebuild_output
     assert "totais:" in rebuild_output
     assert "rebuild-v1 body" not in rebuild_output
-    assert env.collection_entries() == ("notes/rebuild.md",)
+    assert env.collection_entries() == ("notes/alpha.md", "notes/gamma.md", "notes/rebuild.md")
     assert env.collection_get("notes/rebuild.md").returncode == 0
+    assert env.collection_get("notes/beta.md").returncode != 0
