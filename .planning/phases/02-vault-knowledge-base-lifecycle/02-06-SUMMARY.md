@@ -62,12 +62,10 @@ completed: 2026-03-04
 
 Each task was committed atomically through RED/GREEN TDD cycles:
 
-1. **Task 1: Lock terminal readability contract for KB lifecycle logs and summaries**
-2. `998386b` - `test(02-06): add failing KB CLI readability contract tests`
-3. `30665a9` - `feat(02-06): implement deterministic KB CLI readability coverage`
-4. **Task 2: Add real QMD integration suite for ingest/update/delete/rebuild lifecycle**
-5. `86644dc` - `test(02-06): add failing real qmd lifecycle integration tests`
-6. `c0bb303` - `feat(02-06): enforce real qmd lifecycle state transitions`
+1. `998386b` - `test(02-06): add failing KB CLI readability contract tests` (Task 1 RED)
+2. `30665a9` - `feat(02-06): implement deterministic KB CLI readability coverage` (Task 1 GREEN)
+3. `86644dc` - `test(02-06): add failing real qmd lifecycle integration tests` (Task 2 RED)
+4. `c0bb303` - `feat(02-06): enforce real qmd lifecycle state transitions` (Task 2 GREEN)
 
 ## Files Created/Modified
 - `tests/cli/test_kb_command.py` - Added readability and JSON contract assertions with deterministic progress-stage expectations.

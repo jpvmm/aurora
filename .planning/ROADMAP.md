@@ -7,7 +7,7 @@
 ## Phases
 
 - [x] **Phase 1: Local Runtime Baseline** - Local-only runtime, global CLI entrypoint, and model connectivity guardrails.
-- [ ] **Phase 2: Vault Knowledge Base Lifecycle** - Ingest, scope, and maintain Obsidian knowledge state via CLI.
+- [x] **Phase 2: Vault Knowledge Base Lifecycle** - Ingest, scope, and maintain Obsidian knowledge state via CLI. (completed 2026-03-04)
 - [ ] **Phase 3: Grounded Retrieval Experience** - Deliver trusted KB-grounded answers with citations and language policy.
 - [ ] **Phase 4: Long-Term Memory Fusion** - Persist and retrieve memory, then fuse it with KB evidence.
 - [ ] **Phase 5: Operational Command Surface** - Provide explicit command set and health diagnostics for daily operation.
@@ -18,7 +18,7 @@
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Local Runtime Baseline | 5/5 | Complete    | 2026-03-02 |
-| 2. Vault Knowledge Base Lifecycle | 5/6 | In progress | - |
+| 2. Vault Knowledge Base Lifecycle | 6/6 | Complete   | 2026-03-04 |
 | 3. Grounded Retrieval Experience | 0/1 | Not started | - |
 | 4. Long-Term Memory Fusion | 0/1 | Not started | - |
 | 5. Operational Command Surface | 0/1 | Not started | - |
@@ -74,7 +74,7 @@ Plans:
 - [x] `02-03-PLAN.md` - Build manifest/delta/QMD adapter foundations for incremental update, delete, and rebuild semantics. (`02-03-SUMMARY.md`, 2026-03-03)
 - [x] `02-04-PLAN.md` - Wire full `aurora kb` ingest/update/delete/rebuild lifecycle with progress/final stats and CLI integration tests. (`02-04-SUMMARY.md`, 2026-03-03)
 - [x] `02-05-PLAN.md` - Close real-backend verification gap by implementing concrete QMD transport and wiring lifecycle/service integration. (`02-05-SUMMARY.md`, 2026-03-04)
-- [ ] `02-06-PLAN.md` - Automate remaining verification via CLI readability contracts and real QMD end-to-end integration tests.
+- [x] `02-06-PLAN.md` - Automate remaining verification via CLI readability contracts and real QMD end-to-end integration tests. (`02-06-SUMMARY.md`, 2026-03-04)
 
 ### Phase 3: Grounded Retrieval Experience
 **Goal**: User can ask questions and receive trustworthy, evidence-grounded responses from vault content.
@@ -152,4 +152,4 @@ Orphans: 0
 Duplicates: 0
 
 ---
-*Last updated: 2026-03-04 after executing plan 02-05*
+*Last updated: 2026-03-04 after executing plan 02-06*
