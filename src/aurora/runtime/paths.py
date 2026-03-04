@@ -13,6 +13,7 @@ SERVER_STATE_FILENAME = "server-state.json"
 SERVER_LOCK_FILENAME = "server.lock"
 KB_MANIFEST_FILENAME = "kb-manifest.json"
 KB_STATE_FILENAME = "kb-state.json"
+KB_QMD_CORPUS_DIRNAME = "kb-qmd-corpus"
 CONFIG_DIR_ENV = "AURORA_CONFIG_DIR"
 
 
@@ -50,8 +51,25 @@ def get_kb_state_path() -> Path:
     return get_config_dir() / KB_STATE_FILENAME
 
 
+def get_kb_qmd_corpus_root_path() -> Path:
+    """Return the root directory for Aurora-managed QMD corpus files."""
+    return get_config_dir() / KB_QMD_CORPUS_DIRNAME
+
+
+def get_kb_qmd_corpus_path(collection_name: str = "aurora-kb-managed") -> Path:
+    """Return deterministic corpus path scoped by managed QMD collection name."""
+    safe_collection = _normalize_collection_name(collection_name)
+    return get_kb_qmd_corpus_root_path() / safe_collection
+
+
 def ensure_config_dir() -> Path:
     """Create the config directory when missing and return it."""
     config_dir = get_config_dir()
     config_dir.mkdir(parents=True, exist_ok=True)
     return config_dir
+
+
+def _normalize_collection_name(value: str) -> str:
+    normalized = "".join(char if char.isalnum() or char in {"-", "_", "."} else "-" for char in value.strip())
+    normalized = normalized.strip(".-_")
+    return normalized or "default"

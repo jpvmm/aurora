@@ -32,6 +32,8 @@ class RuntimeSettings(BaseSettings):
     kb_include: tuple[str, ...] = ()
     kb_exclude: tuple[str, ...] = ()
     kb_default_excludes: tuple[str, ...] = DEFAULT_SCOPE_EXCLUDES
+    kb_qmd_index_name: str = "aurora-kb"
+    kb_qmd_collection_name: str = "aurora-kb-managed"
 
     model_config = SettingsConfigDict(extra="ignore")
 
@@ -45,6 +47,18 @@ class RuntimeSettings(BaseSettings):
     def _normalize_kb_default_excludes(cls, value: object) -> tuple[str, ...]:
         normalized = _normalize_scope_patterns(field_name="kb_default_excludes", value=value)
         return normalized or DEFAULT_SCOPE_EXCLUDES
+
+    @field_validator("kb_qmd_index_name", "kb_qmd_collection_name", mode="before")
+    @classmethod
+    def _normalize_qmd_identifier(cls, value: object) -> str:
+        if not isinstance(value, str):
+            raise ValueError("Identificador QMD deve ser texto.")
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Identificador QMD nao pode ser vazio.")
+        if "/" in normalized or "\\" in normalized:
+            raise ValueError("Identificador QMD nao pode conter separadores de caminho.")
+        return normalized
 
 
 def load_settings() -> RuntimeSettings:
