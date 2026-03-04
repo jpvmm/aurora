@@ -58,40 +58,89 @@ class FakeKBService:
     delete_calls: list[dict[str, object]] = field(default_factory=list)
     rebuild_calls: list[dict[str, object]] = field(default_factory=list)
 
+    @staticmethod
+    def _emit_standard_progress(
+        on_progress,
+        *,
+        read: int,
+        indexed: int,
+        updated: int,
+        removed: int,
+        skipped: int,
+        errors: int,
+    ) -> None:
+        if on_progress is None:
+            return
+        on_progress(
+            "scan",
+            KBOperationCounters(read=read, indexed=0, updated=0, removed=0, skipped=skipped, errors=0),
+        )
+        on_progress(
+            "preprocess",
+            KBOperationCounters(read=read, indexed=0, updated=0, removed=0, skipped=skipped, errors=errors),
+        )
+        on_progress(
+            "done",
+            KBOperationCounters(
+                read=read,
+                indexed=indexed,
+                updated=updated,
+                removed=removed,
+                skipped=skipped,
+                errors=errors,
+            ),
+        )
+
     def run_ingest(self, *, vault_path: str, dry_run: bool, on_progress):
         self.ingest_calls.append({"vault_path": vault_path, "dry_run": dry_run})
-        if on_progress is not None:
-            on_progress(
-                "scan",
-                KBOperationCounters(read=4, indexed=0, updated=0, removed=0, skipped=0, errors=0),
-            )
+        self._emit_standard_progress(
+            on_progress,
+            read=4,
+            indexed=2,
+            updated=0,
+            removed=1,
+            skipped=1,
+            errors=0,
+        )
         return _summary(operation="ingest", dry_run=dry_run)
 
     def run_update(self, *, dry_run: bool, verify_hash: bool, on_progress):
         self.update_calls.append({"dry_run": dry_run, "verify_hash": verify_hash})
-        if on_progress is not None:
-            on_progress(
-                "delta",
-                KBOperationCounters(read=4, indexed=1, updated=1, removed=1, skipped=1, errors=0),
-            )
+        self._emit_standard_progress(
+            on_progress,
+            read=4,
+            indexed=2,
+            updated=1,
+            removed=1,
+            skipped=1,
+            errors=0,
+        )
         return _summary(operation="update", dry_run=dry_run)
 
     def run_delete(self, *, on_progress):
         self.delete_calls.append({})
-        if on_progress is not None:
-            on_progress(
-                "delete",
-                KBOperationCounters(read=0, indexed=0, updated=0, removed=2, skipped=0, errors=0),
-            )
+        self._emit_standard_progress(
+            on_progress,
+            read=0,
+            indexed=0,
+            updated=0,
+            removed=1,
+            skipped=0,
+            errors=0,
+        )
         return _summary(operation="delete")
 
     def run_rebuild(self, *, dry_run: bool, on_progress):
         self.rebuild_calls.append({"dry_run": dry_run})
-        if on_progress is not None:
-            on_progress(
-                "rebuild",
-                KBOperationCounters(read=4, indexed=4, updated=0, removed=2, skipped=0, errors=0),
-            )
+        self._emit_standard_progress(
+            on_progress,
+            read=4,
+            indexed=2,
+            updated=0,
+            removed=1,
+            skipped=1,
+            errors=0,
+        )
         return _summary(operation="rebuild", dry_run=dry_run)
 
 
