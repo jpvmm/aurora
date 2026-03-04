@@ -5,7 +5,9 @@ from pathlib import Path
 
 import pytest
 
+from aurora.kb.contracts import KBPreparedNote
 from aurora.kb.manifest import KBManifest, KBManifestNoteRecord, load_kb_manifest, save_kb_manifest
+from aurora.kb.qmd_backend import QMDCliBackend
 from aurora.kb.qmd_adapter import QMDBackendDiagnostic, QMDBackendResponse
 from aurora.kb.service import KBService, KBServiceError
 from aurora.runtime.settings import RuntimeSettings, save_settings
@@ -23,20 +25,20 @@ class FakeBackend:
     rebuild_response: QMDBackendResponse = QMDBackendResponse(ok=True)
 
     def __post_init__(self) -> None:
-        self.apply_calls: list[tuple[str, ...]] = []
+        self.apply_calls: list[tuple[KBPreparedNote, ...]] = []
         self.remove_calls: list[tuple[str, ...]] = []
-        self.rebuild_calls: list[tuple[str, ...]] = []
+        self.rebuild_calls: list[tuple[KBPreparedNote, ...]] = []
 
-    def apply(self, paths: tuple[str, ...]) -> QMDBackendResponse:
-        self.apply_calls.append(paths)
+    def apply(self, notes: tuple[KBPreparedNote, ...]) -> QMDBackendResponse:
+        self.apply_calls.append(notes)
         return self.apply_response
 
     def remove(self, paths: tuple[str, ...]) -> QMDBackendResponse:
         self.remove_calls.append(paths)
         return self.remove_response
 
-    def rebuild(self, paths: tuple[str, ...]) -> QMDBackendResponse:
-        self.rebuild_calls.append(paths)
+    def rebuild(self, notes: tuple[KBPreparedNote, ...]) -> QMDBackendResponse:
+        self.rebuild_calls.append(notes)
         return self.rebuild_response
 
 
@@ -67,7 +69,8 @@ def test_ingest_runs_scan_scope_preprocess_and_manifest_commit(tmp_path, monkeyp
 
     summary = service.run_ingest(vault_path=str(vault_path), dry_run=False)
 
-    assert backend.apply_calls == [("notes/public.md",)]
+    assert tuple(note.relative_path for note in backend.apply_calls[0]) == ("notes/public.md",)
+    assert backend.apply_calls[0][0].cleaned_text == "## Header\n\n"
     assert backend.remove_calls == []
     assert summary.counters.read == 1
     assert summary.counters.indexed == 1
@@ -99,7 +102,7 @@ def test_update_applies_only_changed_and_removed_notes(tmp_path, monkeypatch) ->
 
     summary = service.run_update()
 
-    assert backend.apply_calls[-1] == ("notes/a.md", "notes/c.md")
+    assert tuple(note.relative_path for note in backend.apply_calls[-1]) == ("notes/a.md", "notes/c.md")
     assert backend.remove_calls[-1] == ("notes/b.md",)
     assert summary.counters.read == 2
     assert summary.counters.indexed == 1
@@ -138,7 +141,7 @@ def test_rebuild_reprocesses_scope_and_resets_stale_state(tmp_path, monkeypatch)
     service = KBService(backend=backend)
     summary = service.run_rebuild()
 
-    assert backend.rebuild_calls == [("notes/only.md",)]
+    assert tuple(note.relative_path for note in backend.rebuild_calls[0]) == ("notes/only.md",)
     assert summary.counters.indexed == 1
     assert summary.counters.removed == 1
     manifest = load_kb_manifest()
@@ -228,3 +231,9 @@ def test_update_keeps_manifest_entry_when_note_has_noncritical_read_error(tmp_pa
     manifest = load_kb_manifest()
     assert manifest is not None
     assert "notes/protected.md" in manifest.notes
+
+
+def test_service_uses_qmd_cli_backend_by_default() -> None:
+    service = KBService()
+
+    assert isinstance(service._adapter._backend, QMDCliBackend)

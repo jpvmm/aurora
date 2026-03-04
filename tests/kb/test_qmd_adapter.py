@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from aurora.kb.contracts import KBFileDiagnostic
+from aurora.kb.contracts import KBFileDiagnostic, KBPreparedNote
 from aurora.kb.delta import KBDelta
 from aurora.kb.manifest import KBManifest, KBManifestNoteRecord
 from aurora.kb.qmd_adapter import (
@@ -23,12 +23,12 @@ class FakeBackend:
     rebuild_raises: Exception | None = None
 
     def __post_init__(self) -> None:
-        self.apply_calls: list[tuple[str, ...]] = []
+        self.apply_calls: list[tuple[KBPreparedNote, ...]] = []
         self.remove_calls: list[tuple[str, ...]] = []
-        self.rebuild_calls: list[tuple[str, ...]] = []
+        self.rebuild_calls: list[tuple[KBPreparedNote, ...]] = []
 
-    def apply(self, paths: tuple[str, ...]) -> QMDBackendResponse:
-        self.apply_calls.append(paths)
+    def apply(self, notes: tuple[KBPreparedNote, ...]) -> QMDBackendResponse:
+        self.apply_calls.append(notes)
         if self.apply_raises is not None:
             raise self.apply_raises
         return self.apply_response
@@ -39,8 +39,8 @@ class FakeBackend:
             raise self.remove_raises
         return self.remove_response
 
-    def rebuild(self, paths: tuple[str, ...]) -> QMDBackendResponse:
-        self.rebuild_calls.append(paths)
+    def rebuild(self, notes: tuple[KBPreparedNote, ...]) -> QMDBackendResponse:
+        self.rebuild_calls.append(notes)
         if self.rebuild_raises is not None:
             raise self.rebuild_raises
         return self.rebuild_response
@@ -59,6 +59,15 @@ def _note(size: int, mtime_ns: int) -> KBManifestNoteRecord:
 
 def _ok() -> QMDBackendResponse:
     return QMDBackendResponse(ok=True)
+
+
+def _prepared(path: str, cleaned_text: str) -> KBPreparedNote:
+    return KBPreparedNote(
+        relative_path=path,
+        cleaned_text=cleaned_text,
+        cleaned_size=len(cleaned_text.encode("utf-8")),
+        templater_tags_removed=0,
+    )
 
 
 def test_apply_delta_mutates_manifest_only_after_backend_success() -> None:
@@ -89,6 +98,10 @@ def test_apply_delta_mutates_manifest_only_after_backend_success() -> None:
             "notes/add.md": _note(11, 2),
             "notes/update.md": _note(12, 3),
         },
+        prepared_notes={
+            "notes/add.md": _prepared("notes/add.md", "new note"),
+            "notes/update.md": _prepared("notes/update.md", "updated note"),
+        },
     )
 
     assert result == QMDAdapterResult(
@@ -97,7 +110,12 @@ def test_apply_delta_mutates_manifest_only_after_backend_success() -> None:
         diagnostics=(),
         state_mutated=True,
     )
-    assert backend.apply_calls == [("notes/add.md", "notes/update.md")]
+    assert backend.apply_calls == [
+        (
+            _prepared("notes/add.md", "new note"),
+            _prepared("notes/update.md", "updated note"),
+        )
+    ]
     assert backend.remove_calls == [("notes/remove.md",)]
     assert len(saves) == 1
     assert set(saves[0].notes.keys()) == {"notes/add.md", "notes/update.md", "notes/keep.md"}
@@ -119,6 +137,7 @@ def test_apply_delta_refuses_state_mutation_on_divergence() -> None:
             divergence_reasons=("manifest path conflict",),
         ),
         scan_records={},
+        prepared_notes={},
     )
 
     assert result.state_mutated is False
@@ -158,6 +177,7 @@ def test_apply_delta_partial_backend_failure_keeps_manifest_unchanged() -> None:
         manifest=KBManifest(vault_root="/vault", notes={"notes/remove.md": _note(1, 1)}),
         delta=KBDelta(added=(), updated=(), removed=("notes/remove.md",), unchanged=()),
         scan_records={},
+        prepared_notes={},
     )
 
     assert result.state_mutated is False
@@ -184,6 +204,7 @@ def test_backend_exceptions_are_mapped_to_typed_diagnostics() -> None:
         manifest=KBManifest(vault_root="/vault", notes={}),
         delta=KBDelta(added=("notes/a.md",), updated=(), removed=(), unchanged=()),
         scan_records={"notes/a.md": _note(1, 1)},
+        prepared_notes={"notes/a.md": _prepared("notes/a.md", "A")},
     )
 
     assert result.state_mutated is False
@@ -214,9 +235,19 @@ def test_delete_and_rebuild_entrypoints_commit_manifest_on_success() -> None:
             "notes/new.md": _note(2, 2),
             "notes/newer.md": _note(3, 3),
         },
+        prepared_notes={
+            "notes/new.md": _prepared("notes/new.md", "new"),
+            "notes/newer.md": _prepared("notes/newer.md", "newer"),
+        },
     )
     assert rebuild_result.state_mutated is True
     assert rebuild_result.applied == ("notes/new.md", "notes/newer.md")
+    assert backend.rebuild_calls == [
+        (
+            _prepared("notes/new.md", "new"),
+            _prepared("notes/newer.md", "newer"),
+        )
+    ]
 
     assert len(saves) == 2
     assert set(saves[0].notes.keys()) == set()
