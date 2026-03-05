@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-last_updated: "2026-03-05T14:03:38.167Z"
+last_updated: "2026-03-05T14:13:25.920Z"
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 19
-  completed_plans: 17
+  completed_plans: 18
 ---
 
 # STATE: Aurora
@@ -16,16 +16,16 @@ progress:
 ## Project Reference
 
 - **Core value**: Total privacy with useful long-term memory over the vault, without external services.
-- **Current focus**: Phase 02.1 plan 01 completed (KB config UX + safe target overrides/delete confirmation); next is phase 02.1 plan 02 auto-embeddings orchestration.
+- **Current focus**: Phase 02.1 plan 02 completed (delta-gated auto-embedding orchestration + partial-failure reporting); next is phase 02.1 plan 03 scheduler lifecycle.
 - **Depth mode**: comprehensive
 
 ## Current Position
 
 - **Current phase**: 02.1 - KB UX + Auto-Embeddings (Inserted)
-- **Current plan**: 02.1-02 next
-- **Status**: Phase 02.1 in progress (1/3 plans executed)
-- **Overall progress**: 17/19 plans complete
-- **Progress bar**: [######-] 89%
+- **Current plan**: 02.1-03 next
+- **Status**: Phase 02.1 in progress (2/3 plans executed)
+- **Overall progress**: 18/19 plans complete
+- **Progress bar**: [######-] 95%
 
 ## Performance Metrics
 
@@ -90,9 +90,10 @@ progress:
 - [Phase 02.1-the-aurora-kb-suit-needs-working-it-need-to-be-easier-to-configure-update-delete-collections-and-ir-need-to-generate-embeddings-automatically-without-qmd]: Persist auto-embeddings as kb_auto_embeddings_enabled in RuntimeSettings and surface it in config outputs.
 - [Phase 02.1-the-aurora-kb-suit-needs-working-it-need-to-be-easier-to-configure-update-delete-collections-and-ir-need-to-generate-embeddings-automatically-without-qmd]: Implement kb config show/set as canonical active target management surface.
 - [Phase 02.1-the-aurora-kb-suit-needs-working-it-need-to-be-easier-to-configure-update-delete-collections-and-ir-need-to-generate-embeddings-automatically-without-qmd]: Require delete confirmation via interactive prompt or explicit --yes in non-interactive mode.
+- [Phase 02.1-the-aurora-kb-suit-needs-working-it-need-to-be-easier-to-configure-update-delete-collections-and-ir-need-to-generate-embeddings-automatically-without-qmd]: Partial embedding failures now exit with code 2 after rendering full text/json summaries.
+- [Phase 02.1-the-aurora-kb-suit-needs-working-it-need-to-be-easier-to-configure-update-delete-collections-and-ir-need-to-generate-embeddings-automatically-without-qmd]: No-delta apply operations are treated as non-mutating to prevent blind embed runs.
 
 ### TODOs
-- Execute Phase 02.1 plan 02 (`02.1-02-PLAN.md`) for delta-gated auto-embedding orchestration.
 - Execute Phase 02.1 plan 03 (`02.1-03-PLAN.md`) for scheduler lifecycle and lock coordination.
 - Run verification/UAT for phase 01.1 lifecycle command UX (`model start|stop|status|health` and setup auto-start flow).
 
@@ -101,10 +102,10 @@ progress:
 
 ## Session Continuity
 
-- **Last action**: Executed `02.1-01-PLAN.md` and created `02.1-01-SUMMARY.md`.
+- **Last action**: Executed `02.1-02-PLAN.md` and created `02.1-02-SUMMARY.md`.
 - **Next command**: `/gsd:execute-phase 02.1-the-aurora-kb-suit-needs-working-it-need-to-be-easier-to-configure-update-delete-collections-and-ir-need-to-generate-embeddings-automatically-without-qmd`
-- **If resuming later**: Open `.planning/phases/02.1-the-aurora-kb-suit-needs-working-it-need-to-be-easier-to-configure-update-delete-collections-and-ir-need-to-generate-embeddings-automatically-without-qmd/02.1-01-SUMMARY.md` then continue with `02.1-02`.
+- **If resuming later**: Open `.planning/phases/02.1-the-aurora-kb-suit-needs-working-it-need-to-be-easier-to-configure-update-delete-collections-and-ir-need-to-generate-embeddings-automatically-without-qmd/02.1-02-SUMMARY.md` then continue with `02.1-03`.
 
 ---
 *Initialized: 2026-03-01*
-*Last updated: 2026-03-05 after executing phase 02.1 plan 01*
+*Last updated: 2026-03-05 after executing phase 02.1 plan 02*
