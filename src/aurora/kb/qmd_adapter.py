@@ -44,6 +44,8 @@ class QMDBackend(Protocol):
 
     def rebuild(self, notes: tuple[KBPreparedNote, ...]) -> QMDBackendResponse: ...
 
+    def embed(self) -> QMDBackendResponse: ...
+
 
 class QMDAdapter:
     """Aurora-owned adapter for apply/delete/rebuild index lifecycle calls."""
@@ -179,6 +181,9 @@ class QMDAdapter:
             state_mutated=True,
         )
 
+    def embed(self) -> tuple[KBFileDiagnostic, ...]:
+        return self._invoke_backend(operation="embed", paths=("<index>",))
+
     def _invoke_backend(
         self,
         *,
@@ -186,7 +191,7 @@ class QMDAdapter:
         paths: tuple[str, ...],
         notes: tuple[KBPreparedNote, ...] | None = None,
     ) -> tuple[KBFileDiagnostic, ...]:
-        if not paths:
+        if operation != "embed" and not paths:
             return ()
 
         try:
@@ -196,6 +201,8 @@ class QMDAdapter:
                 response = self._backend.remove(paths)
             elif operation == "rebuild":
                 response = self._backend.rebuild(notes or ())
+            elif operation == "embed":
+                response = self._backend.embed()
             else:
                 raise ValueError(f"Operacao de backend desconhecida: {operation}")
         except Exception:

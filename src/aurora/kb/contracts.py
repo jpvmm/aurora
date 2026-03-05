@@ -112,6 +112,7 @@ class KBOperationSummary(BaseModel):
     counters: KBOperationCounters
     scope: KBScopeConfig
     diagnostics: tuple[KBFileDiagnostic, ...] = ()
+    embedding: KBEmbeddingStageStatus | None = None
 
     @field_validator("diagnostics", mode="before")
     @classmethod
@@ -124,7 +125,22 @@ class KBOperationSummary(BaseModel):
             return tuple(value)
         return (value,)  # type: ignore[return-value]
 
+    def model_dump(self, *args, **kwargs):  # type: ignore[override]
+        kwargs.setdefault("exclude_none", True)
+        return super().model_dump(*args, **kwargs)
+
     def to_json(self) -> str:
         """Serialize deterministically for machine output snapshots."""
-        payload = self.model_dump(mode="json")
+        payload = self.model_dump(mode="json", exclude_none=True)
         return json.dumps(payload, ensure_ascii=False, sort_keys=True)
+
+
+class KBEmbeddingStageStatus(BaseModel):
+    """Embedding stage outcome for operation-level summary rendering."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    attempted: bool
+    ok: bool
+    category: str | None = None
+    recovery_command: str | None = None

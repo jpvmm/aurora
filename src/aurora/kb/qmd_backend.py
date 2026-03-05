@@ -95,6 +95,27 @@ class QMDCliBackend:
             return refresh_error
         return self._run_update()
 
+    def embed(self) -> QMDBackendResponse:
+        command = ("qmd", "--index", self.index_name, "embed")
+        try:
+            result = self._run_command(command)
+        except FileNotFoundError:
+            return self._response(
+                "backend_unavailable",
+                "Comando `qmd` nao encontrado. Instale o QMD e valide com `qmd --help`.",
+            )
+
+        if result.returncode == 0:
+            return QMDBackendResponse(ok=True, diagnostics=())
+
+        return self._response(
+            "backend_embed_failed",
+            (
+                "Falha ao gerar embeddings no indice QMD. "
+                f"Execute `qmd --index {self.index_name} embed` e depois `aurora kb update`."
+            ),
+        )
+
     def _refresh_collection(self) -> QMDBackendResponse | None:
         remove_error = self._remove_collection()
         if remove_error is not None:
