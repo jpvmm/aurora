@@ -81,12 +81,12 @@ Plans:
 **Goal:** Make KB lifecycle operations simpler and safer through dedicated KB config UX, deterministic update/delete behavior, and automatic embeddings without manual `qmd` commands.
 **Requirements**: CLI-02, KB-02, KB-03, KB-05
 **Depends on:** Phase 2
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 - [x] `02.1-01-PLAN.md` - Build KB config foundation: persisted settings visibility, dedicated `aurora kb config` surface, and safe target override/delete flow. (`02.1-01-SUMMARY.md`, 2026-03-05)
 - [x] `02.1-02-PLAN.md` - Implement delta-gated blocking auto-embedding orchestration with explicit partial-failure diagnostics and recovery. (`02.1-02-SUMMARY.md`, 2026-03-05)
-- [ ] `02.1-03-PLAN.md` - Add scheduler lifecycle (`enable/disable/status`), daily-hour cadence + boot catch-up, and global KB mutation lock coordination.
+- [x] `02.1-03-PLAN.md` - Add scheduler lifecycle (`enable/disable/status`), daily-hour cadence + boot catch-up, and global KB mutation lock coordination. (`02.1-03-SUMMARY.md`, 2026-03-05)
 
 ### Phase 3: Grounded Retrieval Experience
 **Goal**: User can ask questions and receive trustworthy, evidence-grounded responses from vault content.

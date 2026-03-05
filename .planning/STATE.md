@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-last_updated: "2026-03-05T14:13:25.920Z"
+last_updated: "2026-03-05T14:28:43Z"
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 19
-  completed_plans: 18
+  completed_plans: 19
 ---
 
 # STATE: Aurora
@@ -16,23 +16,23 @@ progress:
 ## Project Reference
 
 - **Core value**: Total privacy with useful long-term memory over the vault, without external services.
-- **Current focus**: Phase 02.1 plan 02 completed (delta-gated auto-embedding orchestration + partial-failure reporting); next is phase 02.1 plan 03 scheduler lifecycle.
+- **Current focus**: Phase 02.1 plan 03 completed (scheduler lifecycle + shared KB mutation lock).
 - **Depth mode**: comprehensive
 
 ## Current Position
 
 - **Current phase**: 02.1 - KB UX + Auto-Embeddings (Inserted)
-- **Current plan**: 02.1-03 next
-- **Status**: Phase 02.1 in progress (2/3 plans executed)
-- **Overall progress**: 18/19 plans complete
-- **Progress bar**: [######-] 95%
+- **Current plan**: Phase 02.1 complete; next planning target is Phase 3.
+- **Status**: Phase 02.1 complete (3/3 plans executed)
+- **Overall progress**: 19/19 plans complete
+- **Progress bar**: [#######] 100%
 
 ## Performance Metrics
 
 - **v1 requirements total**: 24
 - **Requirements mapped**: 24
 - **Coverage status**: 100% mapped
-- **Completed phases**: 3
+- **Completed phases**: 4
 - **Open blockers**: 0
 
 ## Accumulated Context
@@ -92,20 +92,23 @@ progress:
 - [Phase 02.1-the-aurora-kb-suit-needs-working-it-need-to-be-easier-to-configure-update-delete-collections-and-ir-need-to-generate-embeddings-automatically-without-qmd]: Require delete confirmation via interactive prompt or explicit --yes in non-interactive mode.
 - [Phase 02.1-the-aurora-kb-suit-needs-working-it-need-to-be-easier-to-configure-update-delete-collections-and-ir-need-to-generate-embeddings-automatically-without-qmd]: Partial embedding failures now exit with code 2 after rendering full text/json summaries.
 - [Phase 02.1-the-aurora-kb-suit-needs-working-it-need-to-be-easier-to-configure-update-delete-collections-and-ir-need-to-generate-embeddings-automatically-without-qmd]: No-delta apply operations are treated as non-mutating to prevent blind embed runs.
+- [Phase 02.1-the-aurora-kb-suit-needs-working-it-need-to-be-easier-to-configure-update-delete-collections-and-ir-need-to-generate-embeddings-automatically-without-qmd]: All KB mutating service operations now acquire one shared kb.lock to serialize manual and scheduled writes.
+- [Phase 02.1-the-aurora-kb-suit-needs-working-it-need-to-be-easier-to-configure-update-delete-collections-and-ir-need-to-generate-embeddings-automatically-without-qmd]: Scheduler cadence is tracked via persisted last_planned_slot_utc so missed windows trigger one catch-up run without backlog replay.
+- [Phase 02.1-the-aurora-kb-suit-needs-working-it-need-to-be-easier-to-configure-update-delete-collections-and-ir-need-to-generate-embeddings-automatically-without-qmd]: Scheduler CLI status uses deterministic UTC Z timestamps in both text and JSON outputs.
 
 ### TODOs
-- Execute Phase 02.1 plan 03 (`02.1-03-PLAN.md`) for scheduler lifecycle and lock coordination.
 - Run verification/UAT for phase 01.1 lifecycle command UX (`model start|stop|status|health` and setup auto-start flow).
+- Plan and execute Phase 3 (Grounded Retrieval Experience).
 
 ### Blockers
 - None.
 
 ## Session Continuity
 
-- **Last action**: Executed `02.1-02-PLAN.md` and created `02.1-02-SUMMARY.md`.
-- **Next command**: `/gsd:execute-phase 02.1-the-aurora-kb-suit-needs-working-it-need-to-be-easier-to-configure-update-delete-collections-and-ir-need-to-generate-embeddings-automatically-without-qmd`
-- **If resuming later**: Open `.planning/phases/02.1-the-aurora-kb-suit-needs-working-it-need-to-be-easier-to-configure-update-delete-collections-and-ir-need-to-generate-embeddings-automatically-without-qmd/02.1-02-SUMMARY.md` then continue with `02.1-03`.
+- **Last action**: Executed `02.1-03-PLAN.md` and created `02.1-03-SUMMARY.md`.
+- **Next command**: `/gsd:plan-phase 3-grounded-retrieval-experience`
+- **If resuming later**: Open `.planning/phases/02.1-the-aurora-kb-suit-needs-working-it-need-to-be-easier-to-configure-update-delete-collections-and-ir-need-to-generate-embeddings-automatically-without-qmd/02.1-03-SUMMARY.md`.
 
 ---
 *Initialized: 2026-03-01*
-*Last updated: 2026-03-05 after executing phase 02.1 plan 02*
+*Last updated: 2026-03-05 after executing phase 02.1 plan 03*
