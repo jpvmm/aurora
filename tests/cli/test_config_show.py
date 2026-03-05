@@ -25,6 +25,10 @@ def test_config_show_displays_runtime_and_privacy_defaults(
             model_source="Qwen/Qwen3-8B-GGUF:Qwen3-8B-Q8_0.gguf",
             local_only=True,
             telemetry_enabled=False,
+            kb_vault_path="/vault",
+            kb_qmd_index_name="aurora-index",
+            kb_qmd_collection_name="aurora-collection",
+            kb_auto_embeddings_enabled=False,
         )
     )
 
@@ -35,4 +39,8 @@ def test_config_show_displays_runtime_and_privacy_defaults(
     assert "secret" not in result.output
     assert "local-only: ativado" in result.output.lower()
     assert "telemetria: desativada" in result.output.lower()
-
+    assert "kb:" in result.output.lower()
+    assert "vault: /vault" in result.output.lower()
+    assert "index: aurora-index" in result.output.lower()
+    assert "collection: aurora-collection" in result.output.lower()
+    assert "auto-embeddings: desativado" in result.output.lower()

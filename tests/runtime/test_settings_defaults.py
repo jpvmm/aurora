@@ -57,6 +57,9 @@ def test_defaults_are_privacy_first(tmp_path, monkeypatch):
     assert settings.kb_include == ()
     assert settings.kb_exclude == ()
     assert ".obsidian/**" in settings.kb_default_excludes
+    assert settings.kb_qmd_index_name == "aurora-kb"
+    assert settings.kb_qmd_collection_name == "aurora-kb-managed"
+    assert settings.kb_auto_embeddings_enabled is True
 
 
 def test_settings_save_and_load_round_trip(tmp_path, monkeypatch):
@@ -78,6 +81,9 @@ def test_settings_save_and_load_round_trip(tmp_path, monkeypatch):
         kb_include=("notes/**", "daily/**"),
         kb_exclude=(".obsidian/**", "notes/private/**"),
         kb_default_excludes=(".obsidian/**", ".DS_Store"),
+        kb_qmd_index_name="aurora-index",
+        kb_qmd_collection_name="aurora-collection",
+        kb_auto_embeddings_enabled=False,
     )
     save_settings(updated)
 
@@ -90,6 +96,9 @@ def test_settings_save_and_load_round_trip(tmp_path, monkeypatch):
     assert payload["kb_vault_path"] == "/vault"
     assert payload["kb_include"] == ["daily/**", "notes/**"]
     assert payload["kb_exclude"] == [".obsidian/**", "notes/private/**"]
+    assert payload["kb_qmd_index_name"] == "aurora-index"
+    assert payload["kb_qmd_collection_name"] == "aurora-collection"
+    assert payload["kb_auto_embeddings_enabled"] is False
 
 
 def test_kb_paths_use_global_config_directory(tmp_path, monkeypatch):
