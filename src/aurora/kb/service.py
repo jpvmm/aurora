@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Callable
 
 from aurora.kb.contracts import (
+    KBEmbeddingStageStatus,
     KBFileDiagnostic,
     KBOperationCounters,
     KBOperationSummary,
@@ -130,6 +131,8 @@ class KBService:
 
         removed_count = len(effective_delta.removed)
         indexed_count = len(effective_delta.added) + len(effective_delta.updated)
+        summary_diagnostics = diagnostics
+        embedding = self._embedding_not_attempted()
         if not dry_run:
             adapter_result = self._adapter.apply_delta(
                 manifest=manifest,
@@ -140,6 +143,12 @@ class KBService:
             self._raise_on_adapter_diagnostics(adapter_result.diagnostics)
             removed_count = len(adapter_result.removed)
             indexed_count = len(adapter_result.applied)
+            embedding, embed_diagnostics = self._run_embedding_stage(
+                settings=settings,
+                dry_run=False,
+                state_mutated=adapter_result.state_mutated,
+            )
+            summary_diagnostics = (*diagnostics, *embed_diagnostics)
 
         self._emit_progress(
             on_progress,
@@ -149,7 +158,7 @@ class KBService:
             updated=0,
             removed=removed_count,
             skipped=len(scan.skipped) + len(effective_delta.unchanged) + len(errored_paths),
-            errors=len(diagnostics),
+            errors=len(summary_diagnostics),
         )
         return self._build_summary(
             operation="ingest",
@@ -161,7 +170,8 @@ class KBService:
             updated=0,
             removed=removed_count,
             skipped=len(scan.skipped) + len(effective_delta.unchanged) + len(errored_paths),
-            diagnostics=diagnostics,
+            diagnostics=summary_diagnostics,
+            embedding=embedding,
         )
 
     def run_update(
@@ -221,6 +231,8 @@ class KBService:
         indexed_count = len(effective_delta.added)
         updated_count = len(effective_delta.updated)
         removed_count = len(effective_delta.removed)
+        summary_diagnostics = diagnostics
+        embedding = self._embedding_not_attempted()
         if not dry_run:
             adapter_result = self._adapter.apply_delta(
                 manifest=manifest,
@@ -233,6 +245,12 @@ class KBService:
             indexed_count = len(applied_set.intersection(effective_delta.added))
             updated_count = len(applied_set.intersection(effective_delta.updated))
             removed_count = len(adapter_result.removed)
+            embedding, embed_diagnostics = self._run_embedding_stage(
+                settings=settings,
+                dry_run=False,
+                state_mutated=adapter_result.state_mutated,
+            )
+            summary_diagnostics = (*diagnostics, *embed_diagnostics)
 
         self._emit_progress(
             on_progress,
@@ -242,7 +260,7 @@ class KBService:
             updated=updated_count,
             removed=removed_count,
             skipped=len(scan.skipped) + len(effective_delta.unchanged) + len(errored_paths),
-            errors=len(diagnostics),
+            errors=len(summary_diagnostics),
         )
         return self._build_summary(
             operation="update",
@@ -254,7 +272,8 @@ class KBService:
             updated=updated_count,
             removed=removed_count,
             skipped=len(scan.skipped) + len(effective_delta.unchanged) + len(errored_paths),
-            diagnostics=diagnostics,
+            diagnostics=summary_diagnostics,
+            embedding=embedding,
         )
 
     def run_delete(
@@ -292,6 +311,7 @@ class KBService:
                 removed=0,
                 skipped=0,
                 diagnostics=(),
+                embedding=self._embedding_not_attempted(),
             )
 
         adapter_result = self._adapter.delete_paths(
@@ -299,6 +319,11 @@ class KBService:
             paths=paths_to_remove,
         )
         self._raise_on_adapter_diagnostics(adapter_result.diagnostics)
+        embedding, embed_diagnostics = self._run_embedding_stage(
+            settings=settings,
+            dry_run=False,
+            state_mutated=adapter_result.state_mutated,
+        )
         self._emit_progress(
             on_progress,
             "done",
@@ -307,7 +332,7 @@ class KBService:
             updated=0,
             removed=len(adapter_result.removed),
             skipped=0,
-            errors=0,
+            errors=len(embed_diagnostics),
         )
         return self._build_summary(
             operation="delete",
@@ -319,7 +344,8 @@ class KBService:
             updated=0,
             removed=len(adapter_result.removed),
             skipped=0,
-            diagnostics=(),
+            diagnostics=embed_diagnostics,
+            embedding=embedding,
         )
 
     def run_rebuild(
@@ -364,6 +390,8 @@ class KBService:
             errors=len(diagnostics),
         )
         indexed_count = len(records)
+        summary_diagnostics = diagnostics
+        embedding = self._embedding_not_attempted()
         if not dry_run:
             adapter_result = self._adapter.rebuild(
                 manifest=KBManifest(
@@ -376,6 +404,12 @@ class KBService:
             )
             self._raise_on_adapter_diagnostics(adapter_result.diagnostics)
             indexed_count = len(adapter_result.applied)
+            embedding, embed_diagnostics = self._run_embedding_stage(
+                settings=settings,
+                dry_run=False,
+                state_mutated=adapter_result.state_mutated,
+            )
+            summary_diagnostics = (*diagnostics, *embed_diagnostics)
 
         self._emit_progress(
             on_progress,
@@ -385,7 +419,7 @@ class KBService:
             updated=0,
             removed=stale_removed,
             skipped=len(scan.skipped) + len(errored_paths),
-            errors=len(diagnostics),
+            errors=len(summary_diagnostics),
         )
         return self._build_summary(
             operation="rebuild",
@@ -397,7 +431,8 @@ class KBService:
             updated=0,
             removed=stale_removed,
             skipped=len(scan.skipped) + len(errored_paths),
-            diagnostics=diagnostics,
+            diagnostics=summary_diagnostics,
+            embedding=embedding,
         )
 
     def _build_scope(
@@ -649,6 +684,7 @@ class KBService:
         removed: int,
         skipped: int,
         diagnostics: tuple[KBFileDiagnostic, ...],
+        embedding: KBEmbeddingStageStatus,
     ) -> KBOperationSummary:
         return KBOperationSummary(
             operation=operation,
@@ -664,7 +700,35 @@ class KBService:
             ),
             scope=scope,
             diagnostics=diagnostics,
+            embedding=embedding,
         )
+
+    def _embedding_not_attempted(self) -> KBEmbeddingStageStatus:
+        return KBEmbeddingStageStatus(attempted=False, ok=False)
+
+    def _run_embedding_stage(
+        self,
+        *,
+        settings: RuntimeSettings,
+        dry_run: bool,
+        state_mutated: bool,
+    ) -> tuple[KBEmbeddingStageStatus, tuple[KBFileDiagnostic, ...]]:
+        if dry_run or not settings.kb_auto_embeddings_enabled or not state_mutated:
+            return self._embedding_not_attempted(), ()
+
+        diagnostics = self._adapter.embed()
+        if diagnostics:
+            return (
+                KBEmbeddingStageStatus(
+                    attempted=True,
+                    ok=False,
+                    category=diagnostics[0].category,
+                    recovery_command="aurora kb update",
+                ),
+                diagnostics,
+            )
+
+        return KBEmbeddingStageStatus(attempted=True, ok=True), ()
 
     def _emit_progress(
         self,

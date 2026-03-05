@@ -108,6 +108,15 @@ class QMDAdapter:
         if remove_diagnostics:
             return self._fail(diagnostics=remove_diagnostics)
 
+        state_mutated = bool(applied or removed)
+        if not state_mutated:
+            return QMDAdapterResult(
+                applied=applied,
+                removed=removed,
+                diagnostics=(),
+                state_mutated=False,
+            )
+
         updated_notes = dict(manifest.notes)
         for path in removed:
             updated_notes.pop(path, None)
@@ -119,7 +128,7 @@ class QMDAdapter:
             applied=applied,
             removed=removed,
             diagnostics=(),
-            state_mutated=True,
+            state_mutated=state_mutated,
         )
 
     def delete_paths(
