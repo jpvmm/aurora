@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from aurora.kb.contracts import KBPreparedNote
+from aurora.kb.lock import acquire_kb_lock
 from aurora.kb.manifest import KBManifest, KBManifestNoteRecord, load_kb_manifest, save_kb_manifest
 from aurora.kb.qmd_backend import QMDCliBackend
 from aurora.kb.qmd_adapter import QMDBackendDiagnostic, QMDBackendResponse
@@ -346,3 +347,21 @@ def test_update_embed_failure_is_reported_as_partial_failure(tmp_path, monkeypat
     assert summary.embedding.category == "backend_embed_failed"
     assert summary.embedding.recovery_command == "aurora kb update"
     assert summary.diagnostics[0].category == "backend_embed_failed"
+
+
+def test_service_surfaces_kb_lock_timeout_as_actionable_error(tmp_path, monkeypatch) -> None:
+    config_dir = tmp_path / "config"
+    monkeypatch.setenv("AURORA_CONFIG_DIR", str(config_dir))
+
+    service = KBService(
+        backend=FakeBackend(),
+        lock_timeout_seconds=0.05,
+        lock_poll_interval=0.01,
+    )
+
+    with acquire_kb_lock(timeout_seconds=0.2, poll_interval=0.01):
+        with pytest.raises(KBServiceError) as error:
+            service.run_update()
+
+    assert error.value.category == "kb_lock_timeout"
+    assert "aurora kb scheduler status" in error.value.recovery_commands
