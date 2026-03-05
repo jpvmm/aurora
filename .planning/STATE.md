@@ -39,6 +39,7 @@ progress:
 
 ### Roadmap Evolution
 - Phase 01.1 inserted after Phase 1: llama.cpp server lifecycle via CLI (auto start/stop + health/status) (URGENT)
+- Phase 02.1 inserted after Phase 2: the aurora kb suit needs working. it need to be easier to configure update/delete collections and ir need to generate embeddings automatically without qmd. (URGENT)
 
 ### Decisions
 - Roadmap derived from six natural capability boundaries: runtime baseline, KB lifecycle, retrieval, memory fusion, operational commands, and observability hardening.
