@@ -23,11 +23,13 @@ class FakeBackend:
     apply_response: QMDBackendResponse = QMDBackendResponse(ok=True)
     remove_response: QMDBackendResponse = QMDBackendResponse(ok=True)
     rebuild_response: QMDBackendResponse = QMDBackendResponse(ok=True)
+    embed_response: QMDBackendResponse = QMDBackendResponse(ok=True)
 
     def __post_init__(self) -> None:
         self.apply_calls: list[tuple[KBPreparedNote, ...]] = []
         self.remove_calls: list[tuple[str, ...]] = []
         self.rebuild_calls: list[tuple[KBPreparedNote, ...]] = []
+        self.embed_calls: int = 0
 
     def apply(self, notes: tuple[KBPreparedNote, ...]) -> QMDBackendResponse:
         self.apply_calls.append(notes)
@@ -41,14 +43,19 @@ class FakeBackend:
         self.rebuild_calls.append(notes)
         return self.rebuild_response
 
+    def embed(self) -> QMDBackendResponse:
+        self.embed_calls += 1
+        return self.embed_response
 
-def _configure_settings(*, config_dir: Path, vault_path: Path) -> None:
+
+def _configure_settings(*, config_dir: Path, vault_path: Path, auto_embeddings: bool = True) -> None:
     save_settings(
         RuntimeSettings(
             kb_vault_path=str(vault_path),
             kb_include=("notes/*.md",),
             kb_exclude=("notes/private.md",),
             kb_default_excludes=(".obsidian/**",),
+            kb_auto_embeddings_enabled=auto_embeddings,
         )
     )
 
@@ -260,3 +267,82 @@ def test_service_threads_command_target_overrides_without_persisting_settings(tm
     persisted = load_settings()
     assert persisted.kb_qmd_index_name == "global-index"
     assert persisted.kb_qmd_collection_name == "global-collection"
+
+
+def test_update_auto_embed_runs_only_when_state_mutates(tmp_path, monkeypatch) -> None:
+    config_dir = tmp_path / "config"
+    vault_path = tmp_path / "vault"
+    monkeypatch.setenv("AURORA_CONFIG_DIR", str(config_dir))
+    _configure_settings(config_dir=config_dir, vault_path=vault_path, auto_embeddings=False)
+    _write_note(vault_path / "notes" / "a.md", "alpha\n")
+
+    backend = FakeBackend()
+    service = KBService(backend=backend)
+    service.run_ingest(vault_path=str(vault_path), dry_run=False)
+
+    save_settings(load_settings().model_copy(update={"kb_auto_embeddings_enabled": True}))
+    _write_note(vault_path / "notes" / "a.md", "alpha changed\n")
+    summary_changed = service.run_update()
+    assert summary_changed.embedding is not None
+    assert summary_changed.embedding.attempted is True
+    assert summary_changed.embedding.ok is True
+    assert backend.embed_calls == 1
+
+    summary_unchanged = service.run_update()
+    assert summary_unchanged.embedding is not None
+    assert summary_unchanged.embedding.attempted is False
+    assert backend.embed_calls == 1
+
+
+def test_update_dry_run_skips_embed_even_when_delta_exists(tmp_path, monkeypatch) -> None:
+    config_dir = tmp_path / "config"
+    vault_path = tmp_path / "vault"
+    monkeypatch.setenv("AURORA_CONFIG_DIR", str(config_dir))
+    _configure_settings(config_dir=config_dir, vault_path=vault_path, auto_embeddings=False)
+    _write_note(vault_path / "notes" / "a.md", "alpha\n")
+
+    backend = FakeBackend()
+    service = KBService(backend=backend)
+    service.run_ingest(vault_path=str(vault_path), dry_run=False)
+
+    save_settings(load_settings().model_copy(update={"kb_auto_embeddings_enabled": True}))
+    _write_note(vault_path / "notes" / "a.md", "alpha changed\n")
+    summary = service.run_update(dry_run=True)
+
+    assert summary.embedding is not None
+    assert summary.embedding.attempted is False
+    assert backend.embed_calls == 0
+
+
+def test_update_embed_failure_is_reported_as_partial_failure(tmp_path, monkeypatch) -> None:
+    config_dir = tmp_path / "config"
+    vault_path = tmp_path / "vault"
+    monkeypatch.setenv("AURORA_CONFIG_DIR", str(config_dir))
+    _configure_settings(config_dir=config_dir, vault_path=vault_path, auto_embeddings=False)
+    _write_note(vault_path / "notes" / "a.md", "alpha\n")
+
+    backend = FakeBackend(
+        embed_response=QMDBackendResponse(
+            ok=False,
+            diagnostics=(
+                QMDBackendDiagnostic(
+                    path="<index>",
+                    category="backend_embed_failed",
+                    recovery_hint="Execute `qmd --index aurora-test-index embed`.",
+                ),
+            ),
+        )
+    )
+    service = KBService(backend=backend)
+    service.run_ingest(vault_path=str(vault_path), dry_run=False)
+
+    save_settings(load_settings().model_copy(update={"kb_auto_embeddings_enabled": True}))
+    _write_note(vault_path / "notes" / "a.md", "alpha changed\n")
+    summary = service.run_update()
+
+    assert summary.embedding is not None
+    assert summary.embedding.attempted is True
+    assert summary.embedding.ok is False
+    assert summary.embedding.category == "backend_embed_failed"
+    assert summary.embedding.recovery_command == "aurora kb update"
+    assert summary.diagnostics[0].category == "backend_embed_failed"
