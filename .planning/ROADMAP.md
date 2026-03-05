@@ -76,6 +76,18 @@ Plans:
 - [x] `02-05-PLAN.md` - Close real-backend verification gap by implementing concrete QMD transport and wiring lifecycle/service integration. (`02-05-SUMMARY.md`, 2026-03-04)
 - [x] `02-06-PLAN.md` - Automate remaining verification via CLI readability contracts and real QMD end-to-end integration tests. (`02-06-SUMMARY.md`, 2026-03-04)
 
+### Phase 02.1: the aurora kb suit needs working. it need to be easier to configure update/delete collections and ir need to generate embeddings automatically without qmd. (INSERTED)
+
+**Goal:** Make KB lifecycle operations simpler and safer through dedicated KB config UX, deterministic update/delete behavior, and automatic embeddings without manual `qmd` commands.
+**Requirements**: CLI-02, KB-02, KB-03, KB-05
+**Depends on:** Phase 2
+**Plans:** 1/3 plans complete
+
+Plans:
+- [x] `02.1-01-PLAN.md` - Build KB config foundation: persisted settings visibility, dedicated `aurora kb config` surface, and safe target override/delete flow. (`02.1-01-SUMMARY.md`, 2026-03-05)
+- [ ] `02.1-02-PLAN.md` - Implement delta-gated blocking auto-embedding orchestration with explicit partial-failure diagnostics and recovery.
+- [ ] `02.1-03-PLAN.md` - Add scheduler lifecycle (`enable/disable/status`), daily-hour cadence + boot catch-up, and global KB mutation lock coordination.
+
 ### Phase 3: Grounded Retrieval Experience
 **Goal**: User can ask questions and receive trustworthy, evidence-grounded responses from vault content.
 **Depends on**: Phase 2
@@ -152,4 +164,4 @@ Orphans: 0
 Duplicates: 0
 
 ---
-*Last updated: 2026-03-04 after executing plan 02-06*
+*Last updated: 2026-03-05 after executing phase 02.1 plan 01*

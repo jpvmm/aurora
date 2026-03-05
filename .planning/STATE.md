@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: unknown
-last_updated: "2026-03-04T18:17:47.279Z"
+status: in_progress
+last_updated: "2026-03-05T14:03:38.167Z"
 progress:
-  total_phases: 3
+  total_phases: 4
   completed_phases: 3
-  total_plans: 16
-  completed_plans: 16
+  total_plans: 19
+  completed_plans: 17
 ---
 
 # STATE: Aurora
@@ -16,16 +16,16 @@ progress:
 ## Project Reference
 
 - **Core value**: Total privacy with useful long-term memory over the vault, without external services.
-- **Current focus**: Phase 2 plan 06 completed with automated CLI readability + real QMD lifecycle verification; phase 3 retrieval planning is next.
+- **Current focus**: Phase 02.1 plan 01 completed (KB config UX + safe target overrides/delete confirmation); next is phase 02.1 plan 02 auto-embeddings orchestration.
 - **Depth mode**: comprehensive
 
 ## Current Position
 
-- **Current phase**: 3 - Grounded Retrieval Experience
-- **Current plan**: 03-01 next
-- **Status**: Phase 2 complete (6/6 plans complete); ready to start retrieval implementation
-- **Overall progress**: 3/7 phases complete
-- **Progress bar**: [###----] 42%
+- **Current phase**: 02.1 - KB UX + Auto-Embeddings (Inserted)
+- **Current plan**: 02.1-02 next
+- **Status**: Phase 02.1 in progress (1/3 plans executed)
+- **Overall progress**: 17/19 plans complete
+- **Progress bar**: [######-] 89%
 
 ## Performance Metrics
 
@@ -87,9 +87,13 @@ progress:
 - [Phase 02-vault-knowledge-base-lifecycle]: Lock KB CLI readability via ordered stage and summary token assertions after ANSI normalization.
 - [Phase 02-vault-knowledge-base-lifecycle]: Use real QMD integration tests with unique index/collection names and cleanup per test run.
 - [Phase 02-vault-knowledge-base-lifecycle]: Refresh QMD collections on remove/rebuild to ensure backend-visible stale document removal.
+- [Phase 02.1-the-aurora-kb-suit-needs-working-it-need-to-be-easier-to-configure-update-delete-collections-and-ir-need-to-generate-embeddings-automatically-without-qmd]: Persist auto-embeddings as kb_auto_embeddings_enabled in RuntimeSettings and surface it in config outputs.
+- [Phase 02.1-the-aurora-kb-suit-needs-working-it-need-to-be-easier-to-configure-update-delete-collections-and-ir-need-to-generate-embeddings-automatically-without-qmd]: Implement kb config show/set as canonical active target management surface.
+- [Phase 02.1-the-aurora-kb-suit-needs-working-it-need-to-be-easier-to-configure-update-delete-collections-and-ir-need-to-generate-embeddings-automatically-without-qmd]: Require delete confirmation via interactive prompt or explicit --yes in non-interactive mode.
 
 ### TODOs
-- Plan and execute Phase 3 retrieval workflow (`03-01`).
+- Execute Phase 02.1 plan 02 (`02.1-02-PLAN.md`) for delta-gated auto-embedding orchestration.
+- Execute Phase 02.1 plan 03 (`02.1-03-PLAN.md`) for scheduler lifecycle and lock coordination.
 - Run verification/UAT for phase 01.1 lifecycle command UX (`model start|stop|status|health` and setup auto-start flow).
 
 ### Blockers
@@ -97,10 +101,10 @@ progress:
 
 ## Session Continuity
 
-- **Last action**: Executed `02-06-PLAN.md` and created `02-06-SUMMARY.md`.
-- **Next command**: `/gsd:plan-phase 03-grounded-retrieval-experience`
-- **If resuming later**: Open `.planning/phases/02-vault-knowledge-base-lifecycle/02-06-SUMMARY.md` then start phase `03-01`.
+- **Last action**: Executed `02.1-01-PLAN.md` and created `02.1-01-SUMMARY.md`.
+- **Next command**: `/gsd:execute-phase 02.1-the-aurora-kb-suit-needs-working-it-need-to-be-easier-to-configure-update-delete-collections-and-ir-need-to-generate-embeddings-automatically-without-qmd`
+- **If resuming later**: Open `.planning/phases/02.1-the-aurora-kb-suit-needs-working-it-need-to-be-easier-to-configure-update-delete-collections-and-ir-need-to-generate-embeddings-automatically-without-qmd/02.1-01-SUMMARY.md` then continue with `02.1-02`.
 
 ---
 *Initialized: 2026-03-01*
-*Last updated: 2026-03-04 after executing phase 02 plan 06*
+*Last updated: 2026-03-05 after executing phase 02.1 plan 01*
