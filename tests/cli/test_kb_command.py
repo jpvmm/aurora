@@ -9,7 +9,13 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from aurora.kb.contracts import KBFileDiagnostic, KBOperationCounters, KBOperationSummary, KBScopeConfig
+from aurora.kb.contracts import (
+    KBEmbeddingStageStatus,
+    KBFileDiagnostic,
+    KBOperationCounters,
+    KBOperationSummary,
+    KBScopeConfig,
+)
 from aurora.kb.service import KBService
 from aurora.kb.service import KBServiceError
 from aurora.runtime.settings import RuntimeSettings, load_settings, save_settings
@@ -19,7 +25,12 @@ RUNNER = CliRunner()
 ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]|\x1b\].*?\x07")
 
 
-def _summary(*, operation: str, dry_run: bool = False) -> KBOperationSummary:
+def _summary(
+    *,
+    operation: str,
+    dry_run: bool = False,
+    embedding: KBEmbeddingStageStatus | None = None,
+) -> KBOperationSummary:
     return KBOperationSummary(
         operation=operation,  # type: ignore[arg-type]
         dry_run=dry_run,
@@ -39,6 +50,7 @@ def _summary(*, operation: str, dry_run: bool = False) -> KBOperationSummary:
             default_excludes=(".obsidian/**",),
         ),
         diagnostics=(),
+        embedding=embedding,
     )
 
 
@@ -495,3 +507,78 @@ def test_kb_delete_interactive_confirmation_controls_execution(tmp_path: Path, m
     confirm = RUNNER.invoke(app_module.app, ["kb", "delete"], input="y\n", prog_name="aurora")
     assert confirm.exit_code == 0
     assert confirm_service.delete_calls == [{}]
+
+
+def test_update_text_output_reports_embed_partial_failure_warning_and_exit_policy(monkeypatch) -> None:
+    app_module = importlib.import_module("aurora.cli.app")
+    kb_module = importlib.import_module("aurora.cli.kb")
+
+    class PartialFailureService(FakeKBService):
+        def run_update(self, *, dry_run: bool, verify_hash: bool, on_progress):
+            return _summary(
+                operation="update",
+                dry_run=dry_run,
+                embedding=KBEmbeddingStageStatus(
+                    attempted=True,
+                    ok=False,
+                    category="backend_embed_failed",
+                    recovery_command="aurora kb update",
+                ),
+            )
+
+    monkeypatch.setattr(kb_module, "KBService", lambda: PartialFailureService())
+    result = RUNNER.invoke(app_module.app, ["kb", "update"], prog_name="aurora")
+
+    assert result.exit_code == 2
+    output = result.output.lower()
+    assert "warning: embeddings desatualizados" in output
+    assert "aurora kb update" in output
+
+
+def test_update_text_output_reports_embed_success(monkeypatch) -> None:
+    app_module = importlib.import_module("aurora.cli.app")
+    kb_module = importlib.import_module("aurora.cli.kb")
+
+    class EmbedSuccessService(FakeKBService):
+        def run_update(self, *, dry_run: bool, verify_hash: bool, on_progress):
+            return _summary(
+                operation="update",
+                dry_run=dry_run,
+                embedding=KBEmbeddingStageStatus(attempted=True, ok=True),
+            )
+
+    monkeypatch.setattr(kb_module, "KBService", lambda: EmbedSuccessService())
+    result = RUNNER.invoke(app_module.app, ["kb", "update"], prog_name="aurora")
+
+    assert result.exit_code == 0
+    assert "embedding: atualizado" in result.output.lower()
+
+
+def test_update_json_output_includes_embedding_stage_fields(monkeypatch) -> None:
+    app_module = importlib.import_module("aurora.cli.app")
+    kb_module = importlib.import_module("aurora.cli.kb")
+
+    class JsonEmbedService(FakeKBService):
+        def run_update(self, *, dry_run: bool, verify_hash: bool, on_progress):
+            return _summary(
+                operation="update",
+                dry_run=dry_run,
+                embedding=KBEmbeddingStageStatus(
+                    attempted=True,
+                    ok=False,
+                    category="backend_embed_failed",
+                    recovery_command="aurora kb update",
+                ),
+            )
+
+    monkeypatch.setattr(kb_module, "KBService", lambda: JsonEmbedService())
+    result = RUNNER.invoke(app_module.app, ["kb", "update", "--json"], prog_name="aurora")
+
+    assert result.exit_code == 2
+    payload = json.loads(result.output)
+    assert payload["embedding"] == {
+        "attempted": True,
+        "ok": False,
+        "category": "backend_embed_failed",
+        "recovery_command": "aurora kb update",
+    }
