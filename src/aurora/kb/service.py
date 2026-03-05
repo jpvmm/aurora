@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import hashlib
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Iterator
 
 from aurora.kb.contracts import (
     KBEmbeddingStageStatus,
@@ -15,6 +16,7 @@ from aurora.kb.contracts import (
     KBPreparedNote,
     KBScopeConfig,
 )
+from aurora.kb.lock import KBMutationLockError, acquire_kb_lock
 from aurora.kb.delta import KBDelta, KBScanFingerprint, classify_kb_delta
 from aurora.kb.manifest import (
     KBManifest,
@@ -60,11 +62,15 @@ class KBService:
         load_manifest_fn: Callable[[], KBManifest | None] = load_kb_manifest,
         save_manifest_fn: Callable[[KBManifest], KBManifest] = save_kb_manifest,
         now_provider: NowProvider | None = None,
+        lock_timeout_seconds: float = 5.0,
+        lock_poll_interval: float = 0.1,
     ) -> None:
         self._load_settings = load_settings_fn
         self._load_manifest = load_manifest_fn
         self._save_manifest = save_manifest_fn
         self._now_provider = now_provider or (lambda: datetime.now(tz=timezone.utc))
+        self._lock_timeout_seconds = lock_timeout_seconds
+        self._lock_poll_interval = lock_poll_interval
         self._adapter = QMDAdapter(
             backend=backend
             or QMDCliBackend(
@@ -81,98 +87,101 @@ class KBService:
         dry_run: bool = False,
         on_progress: ProgressCallback | None = None,
     ) -> KBOperationSummary:
-        started = time.perf_counter()
-        settings = self._load_settings()
-        scope, scope_rules = self._build_scope(settings=settings, vault_path=vault_path)
-        manifest = self._load_manifest_for_operation(
-            vault_root=scope_rules.vault_root,
-            allow_mismatch=False,
-        )
-        scan = self._scan(scope_rules=scope_rules, scope=scope)
-        self._emit_progress(
-            on_progress,
-            "scan",
-            read=len(scan.indexed),
-            indexed=0,
-            updated=0,
-            removed=0,
-            skipped=len(scan.skipped),
-            errors=0,
-        )
+        with self._acquire_mutation_lock():
+            started = time.perf_counter()
+            settings = self._load_settings()
+            scope, scope_rules = self._build_scope(settings=settings, vault_path=vault_path)
+            manifest = self._load_manifest_for_operation(
+                vault_root=scope_rules.vault_root,
+                allow_mismatch=False,
+            )
+            scan = self._scan(scope_rules=scope_rules, scope=scope)
+            self._emit_progress(
+                on_progress,
+                "scan",
+                read=len(scan.indexed),
+                indexed=0,
+                updated=0,
+                removed=0,
+                skipped=len(scan.skipped),
+                errors=0,
+            )
 
-        fingerprints, records, prepared_notes, diagnostics, errored_paths = self._prepare_scan_records(
-            vault_root=scope_rules.vault_root,
-            indexed_paths=scan.indexed,
-            recovery_command="aurora kb ingest <vault_path>",
-        )
-        scoped_paths = self._resolve_scoped_paths(
-            scan_paths=scan.indexed,
-            manifest=manifest,
-            scope_rules=scope_rules,
-        )
-        delta = classify_kb_delta(
-            scan_notes=fingerprints,
-            manifest=manifest,
-            strict_hash=False,
-            scoped_paths=scoped_paths,
-        )
-        self._raise_on_divergence(delta=delta)
-        effective_delta = self._drop_errored_paths(delta=delta, errored_paths=errored_paths)
-        self._emit_progress(
-            on_progress,
-            "preprocess",
-            read=len(scan.indexed),
-            indexed=0,
-            updated=0,
-            removed=0,
-            skipped=len(scan.skipped) + len(effective_delta.unchanged) + len(errored_paths),
-            errors=len(diagnostics),
-        )
-
-        removed_count = len(effective_delta.removed)
-        indexed_count = len(effective_delta.added) + len(effective_delta.updated)
-        summary_diagnostics = diagnostics
-        embedding = self._embedding_not_attempted()
-        if not dry_run:
-            adapter_result = self._adapter.apply_delta(
+            fingerprints, records, prepared_notes, diagnostics, errored_paths = (
+                self._prepare_scan_records(
+                    vault_root=scope_rules.vault_root,
+                    indexed_paths=scan.indexed,
+                    recovery_command="aurora kb ingest <vault_path>",
+                )
+            )
+            scoped_paths = self._resolve_scoped_paths(
+                scan_paths=scan.indexed,
                 manifest=manifest,
-                delta=effective_delta,
-                scan_records=records,
-                prepared_notes=prepared_notes,
+                scope_rules=scope_rules,
             )
-            self._raise_on_adapter_diagnostics(adapter_result.diagnostics)
-            removed_count = len(adapter_result.removed)
-            indexed_count = len(adapter_result.applied)
-            embedding, embed_diagnostics = self._run_embedding_stage(
-                settings=settings,
-                dry_run=False,
-                state_mutated=adapter_result.state_mutated,
+            delta = classify_kb_delta(
+                scan_notes=fingerprints,
+                manifest=manifest,
+                strict_hash=False,
+                scoped_paths=scoped_paths,
             )
-            summary_diagnostics = (*diagnostics, *embed_diagnostics)
+            self._raise_on_divergence(delta=delta)
+            effective_delta = self._drop_errored_paths(delta=delta, errored_paths=errored_paths)
+            self._emit_progress(
+                on_progress,
+                "preprocess",
+                read=len(scan.indexed),
+                indexed=0,
+                updated=0,
+                removed=0,
+                skipped=len(scan.skipped) + len(effective_delta.unchanged) + len(errored_paths),
+                errors=len(diagnostics),
+            )
 
-        self._emit_progress(
-            on_progress,
-            "done",
-            read=len(scan.indexed),
-            indexed=indexed_count,
-            updated=0,
-            removed=removed_count,
-            skipped=len(scan.skipped) + len(effective_delta.unchanged) + len(errored_paths),
-            errors=len(summary_diagnostics),
-        )
-        return self._build_summary(
-            operation="ingest",
-            dry_run=dry_run,
-            scope=scope,
-            started=started,
-            read=len(scan.indexed),
-            indexed=indexed_count,
-            updated=0,
-            removed=removed_count,
-            skipped=len(scan.skipped) + len(effective_delta.unchanged) + len(errored_paths),
-            diagnostics=summary_diagnostics,
-            embedding=embedding,
-        )
+            removed_count = len(effective_delta.removed)
+            indexed_count = len(effective_delta.added) + len(effective_delta.updated)
+            summary_diagnostics = diagnostics
+            embedding = self._embedding_not_attempted()
+            if not dry_run:
+                adapter_result = self._adapter.apply_delta(
+                    manifest=manifest,
+                    delta=effective_delta,
+                    scan_records=records,
+                    prepared_notes=prepared_notes,
+                )
+                self._raise_on_adapter_diagnostics(adapter_result.diagnostics)
+                removed_count = len(adapter_result.removed)
+                indexed_count = len(adapter_result.applied)
+                embedding, embed_diagnostics = self._run_embedding_stage(
+                    settings=settings,
+                    dry_run=False,
+                    state_mutated=adapter_result.state_mutated,
+                )
+                summary_diagnostics = (*diagnostics, *embed_diagnostics)
+
+            self._emit_progress(
+                on_progress,
+                "done",
+                read=len(scan.indexed),
+                indexed=indexed_count,
+                updated=0,
+                removed=removed_count,
+                skipped=len(scan.skipped) + len(effective_delta.unchanged) + len(errored_paths),
+                errors=len(summary_diagnostics),
+            )
+            return self._build_summary(
+                operation="ingest",
+                dry_run=dry_run,
+                scope=scope,
+                started=started,
+                read=len(scan.indexed),
+                indexed=indexed_count,
+                updated=0,
+                removed=removed_count,
+                skipped=len(scan.skipped) + len(effective_delta.unchanged) + len(errored_paths),
+                diagnostics=summary_diagnostics,
+                embedding=embedding,
+            )
 
     def run_update(
         self,
@@ -181,125 +190,166 @@ class KBService:
         verify_hash: bool = False,
         on_progress: ProgressCallback | None = None,
     ) -> KBOperationSummary:
-        started = time.perf_counter()
-        settings = self._load_settings()
-        scope, scope_rules = self._build_scope(settings=settings)
-        manifest = self._load_manifest_for_operation(
-            vault_root=scope_rules.vault_root,
-            allow_mismatch=False,
-        )
-        scan = self._scan(scope_rules=scope_rules, scope=scope)
-        self._emit_progress(
-            on_progress,
-            "scan",
-            read=len(scan.indexed),
-            indexed=0,
-            updated=0,
-            removed=0,
-            skipped=len(scan.skipped),
-            errors=0,
-        )
-        fingerprints, records, prepared_notes, diagnostics, errored_paths = self._prepare_scan_records(
-            vault_root=scope_rules.vault_root,
-            indexed_paths=scan.indexed,
-            recovery_command="aurora kb update",
-        )
-        scoped_paths = self._resolve_scoped_paths(
-            scan_paths=scan.indexed,
-            manifest=manifest,
-            scope_rules=scope_rules,
-        )
-        delta = classify_kb_delta(
-            scan_notes=fingerprints,
-            manifest=manifest,
-            strict_hash=verify_hash,
-            scoped_paths=scoped_paths,
-        )
-        self._raise_on_divergence(delta=delta)
-        effective_delta = self._drop_errored_paths(delta=delta, errored_paths=errored_paths)
-        self._emit_progress(
-            on_progress,
-            "preprocess",
-            read=len(scan.indexed),
-            indexed=0,
-            updated=0,
-            removed=0,
-            skipped=len(scan.skipped) + len(effective_delta.unchanged) + len(errored_paths),
-            errors=len(diagnostics),
-        )
-
-        indexed_count = len(effective_delta.added)
-        updated_count = len(effective_delta.updated)
-        removed_count = len(effective_delta.removed)
-        summary_diagnostics = diagnostics
-        embedding = self._embedding_not_attempted()
-        if not dry_run:
-            adapter_result = self._adapter.apply_delta(
+        with self._acquire_mutation_lock():
+            started = time.perf_counter()
+            settings = self._load_settings()
+            scope, scope_rules = self._build_scope(settings=settings)
+            manifest = self._load_manifest_for_operation(
+                vault_root=scope_rules.vault_root,
+                allow_mismatch=False,
+            )
+            scan = self._scan(scope_rules=scope_rules, scope=scope)
+            self._emit_progress(
+                on_progress,
+                "scan",
+                read=len(scan.indexed),
+                indexed=0,
+                updated=0,
+                removed=0,
+                skipped=len(scan.skipped),
+                errors=0,
+            )
+            fingerprints, records, prepared_notes, diagnostics, errored_paths = (
+                self._prepare_scan_records(
+                    vault_root=scope_rules.vault_root,
+                    indexed_paths=scan.indexed,
+                    recovery_command="aurora kb update",
+                )
+            )
+            scoped_paths = self._resolve_scoped_paths(
+                scan_paths=scan.indexed,
                 manifest=manifest,
-                delta=effective_delta,
-                scan_records=records,
-                prepared_notes=prepared_notes,
+                scope_rules=scope_rules,
             )
-            self._raise_on_adapter_diagnostics(adapter_result.diagnostics)
-            applied_set = set(adapter_result.applied)
-            indexed_count = len(applied_set.intersection(effective_delta.added))
-            updated_count = len(applied_set.intersection(effective_delta.updated))
-            removed_count = len(adapter_result.removed)
-            embedding, embed_diagnostics = self._run_embedding_stage(
-                settings=settings,
-                dry_run=False,
-                state_mutated=adapter_result.state_mutated,
+            delta = classify_kb_delta(
+                scan_notes=fingerprints,
+                manifest=manifest,
+                strict_hash=verify_hash,
+                scoped_paths=scoped_paths,
             )
-            summary_diagnostics = (*diagnostics, *embed_diagnostics)
+            self._raise_on_divergence(delta=delta)
+            effective_delta = self._drop_errored_paths(delta=delta, errored_paths=errored_paths)
+            self._emit_progress(
+                on_progress,
+                "preprocess",
+                read=len(scan.indexed),
+                indexed=0,
+                updated=0,
+                removed=0,
+                skipped=len(scan.skipped) + len(effective_delta.unchanged) + len(errored_paths),
+                errors=len(diagnostics),
+            )
 
-        self._emit_progress(
-            on_progress,
-            "done",
-            read=len(scan.indexed),
-            indexed=indexed_count,
-            updated=updated_count,
-            removed=removed_count,
-            skipped=len(scan.skipped) + len(effective_delta.unchanged) + len(errored_paths),
-            errors=len(summary_diagnostics),
-        )
-        return self._build_summary(
-            operation="update",
-            dry_run=dry_run,
-            scope=scope,
-            started=started,
-            read=len(scan.indexed),
-            indexed=indexed_count,
-            updated=updated_count,
-            removed=removed_count,
-            skipped=len(scan.skipped) + len(effective_delta.unchanged) + len(errored_paths),
-            diagnostics=summary_diagnostics,
-            embedding=embedding,
-        )
+            indexed_count = len(effective_delta.added)
+            updated_count = len(effective_delta.updated)
+            removed_count = len(effective_delta.removed)
+            summary_diagnostics = diagnostics
+            embedding = self._embedding_not_attempted()
+            if not dry_run:
+                adapter_result = self._adapter.apply_delta(
+                    manifest=manifest,
+                    delta=effective_delta,
+                    scan_records=records,
+                    prepared_notes=prepared_notes,
+                )
+                self._raise_on_adapter_diagnostics(adapter_result.diagnostics)
+                applied_set = set(adapter_result.applied)
+                indexed_count = len(applied_set.intersection(effective_delta.added))
+                updated_count = len(applied_set.intersection(effective_delta.updated))
+                removed_count = len(adapter_result.removed)
+                embedding, embed_diagnostics = self._run_embedding_stage(
+                    settings=settings,
+                    dry_run=False,
+                    state_mutated=adapter_result.state_mutated,
+                )
+                summary_diagnostics = (*diagnostics, *embed_diagnostics)
+
+            self._emit_progress(
+                on_progress,
+                "done",
+                read=len(scan.indexed),
+                indexed=indexed_count,
+                updated=updated_count,
+                removed=removed_count,
+                skipped=len(scan.skipped) + len(effective_delta.unchanged) + len(errored_paths),
+                errors=len(summary_diagnostics),
+            )
+            return self._build_summary(
+                operation="update",
+                dry_run=dry_run,
+                scope=scope,
+                started=started,
+                read=len(scan.indexed),
+                indexed=indexed_count,
+                updated=updated_count,
+                removed=removed_count,
+                skipped=len(scan.skipped) + len(effective_delta.unchanged) + len(errored_paths),
+                diagnostics=summary_diagnostics,
+                embedding=embedding,
+            )
 
     def run_delete(
         self,
         *,
         on_progress: ProgressCallback | None = None,
     ) -> KBOperationSummary:
-        started = time.perf_counter()
-        settings = self._load_settings()
-        scope, scope_rules = self._build_scope(settings=settings)
-        manifest = self._load_manifest_for_operation(
-            vault_root=scope_rules.vault_root,
-            allow_mismatch=False,
-        )
-        paths_to_remove = self._manifest_paths_in_scope(manifest=manifest, scope_rules=scope_rules)
-        self._emit_progress(
-            on_progress,
-            "scan",
-            read=0,
-            indexed=0,
-            updated=0,
-            removed=0,
-            skipped=0,
-            errors=0,
-        )
-        if not paths_to_remove:
+        with self._acquire_mutation_lock():
+            started = time.perf_counter()
+            settings = self._load_settings()
+            scope, scope_rules = self._build_scope(settings=settings)
+            manifest = self._load_manifest_for_operation(
+                vault_root=scope_rules.vault_root,
+                allow_mismatch=False,
+            )
+            paths_to_remove = self._manifest_paths_in_scope(
+                manifest=manifest,
+                scope_rules=scope_rules,
+            )
+            self._emit_progress(
+                on_progress,
+                "scan",
+                read=0,
+                indexed=0,
+                updated=0,
+                removed=0,
+                skipped=0,
+                errors=0,
+            )
+            if not paths_to_remove:
+                return self._build_summary(
+                    operation="delete",
+                    dry_run=False,
+                    scope=scope,
+                    started=started,
+                    read=0,
+                    indexed=0,
+                    updated=0,
+                    removed=0,
+                    skipped=0,
+                    diagnostics=(),
+                    embedding=self._embedding_not_attempted(),
+                )
+
+            adapter_result = self._adapter.delete_paths(
+                manifest=manifest,
+                paths=paths_to_remove,
+            )
+            self._raise_on_adapter_diagnostics(adapter_result.diagnostics)
+            embedding, embed_diagnostics = self._run_embedding_stage(
+                settings=settings,
+                dry_run=False,
+                state_mutated=adapter_result.state_mutated,
+            )
+            self._emit_progress(
+                on_progress,
+                "done",
+                read=0,
+                indexed=0,
+                updated=0,
+                removed=len(adapter_result.removed),
+                skipped=0,
+                errors=len(embed_diagnostics),
+            )
             return self._build_summary(
                 operation="delete",
                 dry_run=False,
@@ -308,45 +358,11 @@ class KBService:
                 read=0,
                 indexed=0,
                 updated=0,
-                removed=0,
+                removed=len(adapter_result.removed),
                 skipped=0,
-                diagnostics=(),
-                embedding=self._embedding_not_attempted(),
+                diagnostics=embed_diagnostics,
+                embedding=embedding,
             )
-
-        adapter_result = self._adapter.delete_paths(
-            manifest=manifest,
-            paths=paths_to_remove,
-        )
-        self._raise_on_adapter_diagnostics(adapter_result.diagnostics)
-        embedding, embed_diagnostics = self._run_embedding_stage(
-            settings=settings,
-            dry_run=False,
-            state_mutated=adapter_result.state_mutated,
-        )
-        self._emit_progress(
-            on_progress,
-            "done",
-            read=0,
-            indexed=0,
-            updated=0,
-            removed=len(adapter_result.removed),
-            skipped=0,
-            errors=len(embed_diagnostics),
-        )
-        return self._build_summary(
-            operation="delete",
-            dry_run=False,
-            scope=scope,
-            started=started,
-            read=0,
-            indexed=0,
-            updated=0,
-            removed=len(adapter_result.removed),
-            skipped=0,
-            diagnostics=embed_diagnostics,
-            embedding=embedding,
-        )
 
     def run_rebuild(
         self,
@@ -354,86 +370,87 @@ class KBService:
         dry_run: bool = False,
         on_progress: ProgressCallback | None = None,
     ) -> KBOperationSummary:
-        started = time.perf_counter()
-        settings = self._load_settings()
-        scope, scope_rules = self._build_scope(settings=settings)
-        manifest = self._load_manifest_for_operation(
-            vault_root=scope_rules.vault_root,
-            allow_mismatch=True,
-        )
-        scan = self._scan(scope_rules=scope_rules, scope=scope)
-        self._emit_progress(
-            on_progress,
-            "scan",
-            read=len(scan.indexed),
-            indexed=0,
-            updated=0,
-            removed=0,
-            skipped=len(scan.skipped),
-            errors=0,
-        )
-        _, records, prepared_notes, diagnostics, errored_paths = self._prepare_scan_records(
-            vault_root=scope_rules.vault_root,
-            indexed_paths=scan.indexed,
-            recovery_command="aurora kb rebuild",
-        )
-        stale_before = set(self._manifest_paths_in_scope(manifest=manifest, scope_rules=scope_rules))
-        stale_removed = len(stale_before - set(records.keys()))
-        self._emit_progress(
-            on_progress,
-            "preprocess",
-            read=len(scan.indexed),
-            indexed=0,
-            updated=0,
-            removed=0,
-            skipped=len(scan.skipped) + len(errored_paths),
-            errors=len(diagnostics),
-        )
-        indexed_count = len(records)
-        summary_diagnostics = diagnostics
-        embedding = self._embedding_not_attempted()
-        if not dry_run:
-            adapter_result = self._adapter.rebuild(
-                manifest=KBManifest(
-                    vault_root=scope_rules.vault_root.as_posix(),
-                    notes=dict(manifest.notes),
-                    schema_version=manifest.schema_version,
-                ),
-                records=records,
-                prepared_notes=prepared_notes,
+        with self._acquire_mutation_lock():
+            started = time.perf_counter()
+            settings = self._load_settings()
+            scope, scope_rules = self._build_scope(settings=settings)
+            manifest = self._load_manifest_for_operation(
+                vault_root=scope_rules.vault_root,
+                allow_mismatch=True,
             )
-            self._raise_on_adapter_diagnostics(adapter_result.diagnostics)
-            indexed_count = len(adapter_result.applied)
-            embedding, embed_diagnostics = self._run_embedding_stage(
-                settings=settings,
-                dry_run=False,
-                state_mutated=adapter_result.state_mutated,
+            scan = self._scan(scope_rules=scope_rules, scope=scope)
+            self._emit_progress(
+                on_progress,
+                "scan",
+                read=len(scan.indexed),
+                indexed=0,
+                updated=0,
+                removed=0,
+                skipped=len(scan.skipped),
+                errors=0,
             )
-            summary_diagnostics = (*diagnostics, *embed_diagnostics)
+            _, records, prepared_notes, diagnostics, errored_paths = self._prepare_scan_records(
+                vault_root=scope_rules.vault_root,
+                indexed_paths=scan.indexed,
+                recovery_command="aurora kb rebuild",
+            )
+            stale_before = set(self._manifest_paths_in_scope(manifest=manifest, scope_rules=scope_rules))
+            stale_removed = len(stale_before - set(records.keys()))
+            self._emit_progress(
+                on_progress,
+                "preprocess",
+                read=len(scan.indexed),
+                indexed=0,
+                updated=0,
+                removed=0,
+                skipped=len(scan.skipped) + len(errored_paths),
+                errors=len(diagnostics),
+            )
+            indexed_count = len(records)
+            summary_diagnostics = diagnostics
+            embedding = self._embedding_not_attempted()
+            if not dry_run:
+                adapter_result = self._adapter.rebuild(
+                    manifest=KBManifest(
+                        vault_root=scope_rules.vault_root.as_posix(),
+                        notes=dict(manifest.notes),
+                        schema_version=manifest.schema_version,
+                    ),
+                    records=records,
+                    prepared_notes=prepared_notes,
+                )
+                self._raise_on_adapter_diagnostics(adapter_result.diagnostics)
+                indexed_count = len(adapter_result.applied)
+                embedding, embed_diagnostics = self._run_embedding_stage(
+                    settings=settings,
+                    dry_run=False,
+                    state_mutated=adapter_result.state_mutated,
+                )
+                summary_diagnostics = (*diagnostics, *embed_diagnostics)
 
-        self._emit_progress(
-            on_progress,
-            "done",
-            read=len(scan.indexed),
-            indexed=indexed_count,
-            updated=0,
-            removed=stale_removed,
-            skipped=len(scan.skipped) + len(errored_paths),
-            errors=len(summary_diagnostics),
-        )
-        return self._build_summary(
-            operation="rebuild",
-            dry_run=dry_run,
-            scope=scope,
-            started=started,
-            read=len(scan.indexed),
-            indexed=indexed_count,
-            updated=0,
-            removed=stale_removed,
-            skipped=len(scan.skipped) + len(errored_paths),
-            diagnostics=summary_diagnostics,
-            embedding=embedding,
-        )
+            self._emit_progress(
+                on_progress,
+                "done",
+                read=len(scan.indexed),
+                indexed=indexed_count,
+                updated=0,
+                removed=stale_removed,
+                skipped=len(scan.skipped) + len(errored_paths),
+                errors=len(summary_diagnostics),
+            )
+            return self._build_summary(
+                operation="rebuild",
+                dry_run=dry_run,
+                scope=scope,
+                started=started,
+                read=len(scan.indexed),
+                indexed=indexed_count,
+                updated=0,
+                removed=stale_removed,
+                skipped=len(scan.skipped) + len(errored_paths),
+                diagnostics=summary_diagnostics,
+                embedding=embedding,
+            )
 
     def _build_scope(
         self,
@@ -755,6 +772,28 @@ class KBService:
                 errors=errors,
             ),
         )
+
+    @contextmanager
+    def _acquire_mutation_lock(self) -> Iterator[None]:
+        try:
+            with acquire_kb_lock(
+                timeout_seconds=self._lock_timeout_seconds,
+                poll_interval=self._lock_poll_interval,
+            ):
+                yield
+        except KBMutationLockError as error:
+            raise KBServiceError(
+                category="kb_lock_timeout",
+                message=error.message,
+                diagnostics=(
+                    KBFileDiagnostic(
+                        path="<kb-lock>",
+                        category="kb_lock_timeout",
+                        recovery_hint="Aguarde a operacao concorrente finalizar e tente novamente.",
+                    ),
+                ),
+                recovery_commands=error.recovery_commands,
+            ) from error
 
 
 __all__ = ["KBService", "KBServiceError", "ProgressCallback"]
