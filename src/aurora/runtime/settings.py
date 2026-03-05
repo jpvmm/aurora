@@ -34,6 +34,7 @@ class RuntimeSettings(BaseSettings):
     kb_default_excludes: tuple[str, ...] = DEFAULT_SCOPE_EXCLUDES
     kb_qmd_index_name: str = "aurora-kb"
     kb_qmd_collection_name: str = "aurora-kb-managed"
+    kb_auto_embeddings_enabled: bool = True
 
     model_config = SettingsConfigDict(extra="ignore")
 

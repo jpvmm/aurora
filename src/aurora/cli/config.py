@@ -38,6 +38,15 @@ def config_show_command() -> None:
     typer.echo(f"- model: {settings.model_id}")
     typer.echo(f"- source: {mask_sensitive(settings.model_source)}")
     typer.echo("")
+    typer.echo("KB:")
+    typer.echo(f"- vault: {settings.kb_vault_path or '(nao configurado)'}")
+    typer.echo(f"- index: {settings.kb_qmd_index_name}")
+    typer.echo(f"- collection: {settings.kb_qmd_collection_name}")
+    typer.echo(
+        "- auto-embeddings: "
+        f"{'ativado' if settings.kb_auto_embeddings_enabled else 'desativado'}"
+    )
+    typer.echo("")
     typer.echo("Privacidade:")
     typer.echo(f"- local-only: {'ativado' if settings.local_only else 'desativado'}")
     typer.echo(f"- telemetria: {'ativada' if settings.telemetry_enabled else 'desativada'}")
