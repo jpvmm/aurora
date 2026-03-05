@@ -76,7 +76,7 @@ Explicitly excluded. Documented to prevent scope creep.
 | Feature | Reason |
 |---------|--------|
 | Cloud fallback for model inference | Conflicts with privacy-first product direction |
-| Autonomous background vault mutation | High trust/safety risk for early versions |
+| Autonomous background vault mutation without explicit user opt-in scheduling controls | High trust/safety risk for early versions (opt-in scheduler with explicit enable/disable/status remains in scope) |
 | Broad multimodal ingestion (audio/video/OCR) | Adds complexity before Markdown core is stable |
 | Enterprise RBAC and tenancy | Not aligned with single-user v1 focus |
 
