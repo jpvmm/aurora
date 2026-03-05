@@ -402,11 +402,13 @@ def test_kb_help_and_root_help_expose_kb_config_surface(tmp_path: Path, monkeypa
     save_settings(RuntimeSettings())
 
     kb_help = RUNNER.invoke(app_module.app, ["kb", "--help"], prog_name="aurora")
+    kb_config_help = RUNNER.invoke(app_module.app, ["kb", "config", "--help"], prog_name="aurora")
     root_help = RUNNER.invoke(app_module.app, ["--help"], prog_name="aurora")
 
     assert kb_help.exit_code == 0
+    assert kb_config_help.exit_code == 0
     assert root_help.exit_code == 0
     assert "config" in kb_help.output.lower()
-    assert "show" in kb_help.output.lower()
-    assert "set" in kb_help.output.lower()
+    assert "show" in kb_config_help.output.lower()
+    assert "set" in kb_config_help.output.lower()
     assert "kb" in root_help.output.lower()

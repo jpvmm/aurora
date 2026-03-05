@@ -6,11 +6,17 @@ import typer
 
 from aurora.kb.contracts import KBFileDiagnostic, KBOperationCounters, KBOperationSummary
 from aurora.kb.service import KBService, KBServiceError
+from aurora.runtime.settings import load_settings, save_settings
 
 
 kb_app = typer.Typer(
     no_args_is_help=True,
     help="Comandos de ciclo de vida da base de conhecimento do vault.",
+)
+
+kb_config_app = typer.Typer(
+    no_args_is_help=True,
+    help="Inspecao e ajuste da configuracao operacional do KB.",
 )
 
 
@@ -119,6 +125,87 @@ def kb_rebuild_command(
     _render_summary(summary=summary, json_output=json_output)
 
 
+@kb_config_app.command("show")
+def kb_config_show_command() -> None:
+    settings = load_settings()
+    typer.echo("Configuracao KB atual")
+    typer.echo(f"vault: {settings.kb_vault_path or '(nao configurado)'}")
+    typer.echo(f"include: {list(settings.kb_include)}")
+    typer.echo(f"exclude: {list(settings.kb_exclude)}")
+    typer.echo(f"index: {settings.kb_qmd_index_name}")
+    typer.echo(f"collection: {settings.kb_qmd_collection_name}")
+    typer.echo(
+        f"auto-embeddings: {'ativado' if settings.kb_auto_embeddings_enabled else 'desativado'}"
+    )
+
+
+@kb_config_app.command("set")
+def kb_config_set_command(
+    vault: str | None = typer.Option(
+        None,
+        "--vault",
+        help="Define caminho absoluto do vault padrao para KB.",
+    ),
+    include: list[str] | None = typer.Option(
+        None,
+        "--include",
+        help="Padrao de include (repita a opcao para varios valores).",
+    ),
+    exclude: list[str] | None = typer.Option(
+        None,
+        "--exclude",
+        help="Padrao de exclude (repita a opcao para varios valores).",
+    ),
+    index: str | None = typer.Option(
+        None,
+        "--index",
+        help="Nome do indice QMD ativo.",
+    ),
+    collection: str | None = typer.Option(
+        None,
+        "--collection",
+        help="Nome da collection QMD ativa.",
+    ),
+    auto_embeddings: bool | None = typer.Option(
+        None,
+        "--auto-embeddings/--no-auto-embeddings",
+        help="Ativa/desativa embeddings automáticos apos mutacoes KB.",
+    ),
+) -> None:
+    if all(
+        option is None
+        for option in (vault, include, exclude, index, collection, auto_embeddings)
+    ):
+        typer.echo(
+            "Nenhuma alteracao informada. Use ao menos um parametro "
+            "(--vault/--include/--exclude/--index/--collection/--auto-embeddings)."
+        )
+        raise typer.Exit(code=1)
+
+    settings = load_settings()
+    update_payload: dict[str, object] = {}
+    if vault is not None:
+        update_payload["kb_vault_path"] = vault.strip()
+    if include is not None:
+        update_payload["kb_include"] = tuple(include)
+    if exclude is not None:
+        update_payload["kb_exclude"] = tuple(exclude)
+    if index is not None:
+        update_payload["kb_qmd_index_name"] = index
+    if collection is not None:
+        update_payload["kb_qmd_collection_name"] = collection
+    if auto_embeddings is not None:
+        update_payload["kb_auto_embeddings_enabled"] = auto_embeddings
+
+    updated = save_settings(settings.model_copy(update=update_payload))
+    typer.echo("Configuracao KB atualizada.")
+    typer.echo(f"index ativo: {updated.kb_qmd_index_name}")
+    typer.echo(f"collection ativa: {updated.kb_qmd_collection_name}")
+    typer.echo(
+        f"auto-embeddings: {'ativado' if updated.kb_auto_embeddings_enabled else 'desativado'}"
+    )
+
+
 def _render_progress(stage: str, counters: KBOperationCounters) -> None:
     typer.echo(
         "etapa: "
@@ -199,6 +286,9 @@ def _render_service_error(*, error: KBServiceError, json_output: bool) -> None:
     _render_diagnostics(error.diagnostics)
     for command in error.recovery_commands:
         typer.echo(f"recuperacao: {command}")
+
+
+kb_app.add_typer(kb_config_app, name="config")
 
 
 __all__ = ["kb_app"]
