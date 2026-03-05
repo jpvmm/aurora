@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import json
 import sys
+from datetime import UTC, datetime
 
 import typer
 
 from aurora.kb.contracts import KBFileDiagnostic, KBOperationCounters, KBOperationSummary
+from aurora.kb.scheduler import KBSchedulerStatus, KBSchedulerService
 from aurora.kb.service import KBService, KBServiceError
 from aurora.runtime.settings import load_settings, save_settings
 
@@ -18,6 +20,11 @@ kb_app = typer.Typer(
 kb_config_app = typer.Typer(
     no_args_is_help=True,
     help="Inspecao e ajuste da configuracao operacional do KB.",
+)
+
+kb_scheduler_app = typer.Typer(
+    no_args_is_help=True,
+    help="Controle de execucao agendada para atualizacoes KB.",
 )
 
 
@@ -249,6 +256,67 @@ def kb_config_set_command(
     )
 
 
+@kb_scheduler_app.command("enable")
+def kb_scheduler_enable_command(
+    hour: int | None = typer.Option(
+        None,
+        "--hour",
+        min=0,
+        max=23,
+        help="Hora local (0-23) para execucao diaria.",
+    ),
+    json_output: bool = typer.Option(
+        False,
+        "--json",
+        help="Renderiza resposta estruturada em JSON.",
+    ),
+) -> None:
+    service = KBSchedulerService()
+    try:
+        status = service.enable(hour_local=hour)
+    except KBServiceError as error:
+        _render_service_error(error=error, json_output=json_output)
+        raise typer.Exit(code=1) from error
+
+    _render_scheduler_status(status=status, json_output=json_output)
+
+
+@kb_scheduler_app.command("disable")
+def kb_scheduler_disable_command(
+    json_output: bool = typer.Option(
+        False,
+        "--json",
+        help="Renderiza resposta estruturada em JSON.",
+    ),
+) -> None:
+    service = KBSchedulerService()
+    try:
+        status = service.disable()
+    except KBServiceError as error:
+        _render_service_error(error=error, json_output=json_output)
+        raise typer.Exit(code=1) from error
+
+    _render_scheduler_status(status=status, json_output=json_output)
+
+
+@kb_scheduler_app.command("status")
+def kb_scheduler_status_command(
+    json_output: bool = typer.Option(
+        False,
+        "--json",
+        help="Renderiza resposta estruturada em JSON.",
+    ),
+) -> None:
+    service = KBSchedulerService()
+    try:
+        status = service.status()
+    except KBServiceError as error:
+        _render_service_error(error=error, json_output=json_output)
+        raise typer.Exit(code=1) from error
+
+    _render_scheduler_status(status=status, json_output=json_output)
+
+
 def _render_progress(stage: str, counters: KBOperationCounters) -> None:
     typer.echo(
         "etapa: "
@@ -321,6 +389,52 @@ def _render_embedding_status(*, summary: KBOperationSummary) -> None:
         typer.echo(f"embedding_category: {summary.embedding.category}")
     if summary.embedding.recovery_command:
         typer.echo(f"recuperacao: {summary.embedding.recovery_command}")
+
+
+def _render_scheduler_status(*, status: KBSchedulerStatus, json_output: bool) -> None:
+    payload = {
+        "enabled": status.enabled,
+        "local_hour": status.local_hour,
+        "timezone": status.timezone_name,
+        "next_due_at": _format_optional_datetime(status.next_due_at),
+        "catch_up_eligible": status.catch_up_eligible,
+        "last_planned_slot_at": _format_optional_datetime(status.last_planned_slot_at),
+        "last_run_started_at": _format_optional_datetime(status.last_run_started_at),
+        "last_run_completed_at": _format_optional_datetime(status.last_run_completed_at),
+        "last_run_ok": status.last_run_ok,
+        "last_run_reason": status.last_run_reason,
+        "last_error_category": status.last_error_category,
+    }
+    if json_output:
+        typer.echo(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+        return
+
+    typer.echo(f"scheduler: {'ativado' if status.enabled else 'desativado'}")
+    typer.echo(f"hora_local: {status.local_hour}")
+    typer.echo(f"timezone: {status.timezone_name}")
+    typer.echo(f"proxima_execucao: {payload['next_due_at'] or 'nenhuma'}")
+    typer.echo(f"catch_up_elegivel: {'sim' if status.catch_up_eligible else 'nao'}")
+    typer.echo(f"ultimo_slot_planejado: {payload['last_planned_slot_at'] or 'nenhum'}")
+    typer.echo(f"ultima_execucao_inicio: {payload['last_run_started_at'] or 'nenhuma'}")
+    typer.echo(f"ultima_execucao_fim: {payload['last_run_completed_at'] or 'nenhuma'}")
+    typer.echo(
+        "ultimo_resultado: "
+        f"{'sucesso' if status.last_run_ok is True else 'falha' if status.last_run_ok is False else 'nao executado'}"
+    )
+    if status.last_run_reason:
+        typer.echo(f"ultimo_motivo: {status.last_run_reason}")
+    if status.last_error_category:
+        typer.echo(f"ultimo_erro: {status.last_error_category}")
+
+
+def _format_optional_datetime(value: datetime | None) -> str | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        normalized = value.replace(tzinfo=UTC)
+    else:
+        normalized = value.astimezone(UTC)
+    return normalized.isoformat().replace("+00:00", "Z")
 
 
 def _raise_for_partial_embedding(summary: KBOperationSummary) -> None:
@@ -398,6 +512,7 @@ def _is_interactive_terminal() -> bool:
 
 
 kb_app.add_typer(kb_config_app, name="config")
+kb_app.add_typer(kb_scheduler_app, name="scheduler")
 
 
 __all__ = ["kb_app"]
