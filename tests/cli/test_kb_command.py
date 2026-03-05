@@ -12,7 +12,7 @@ from typer.testing import CliRunner
 from aurora.kb.contracts import KBFileDiagnostic, KBOperationCounters, KBOperationSummary, KBScopeConfig
 from aurora.kb.service import KBService
 from aurora.kb.service import KBServiceError
-from aurora.runtime.settings import RuntimeSettings, save_settings
+from aurora.runtime.settings import RuntimeSettings, load_settings, save_settings
 
 
 RUNNER = CliRunner()
@@ -329,3 +329,84 @@ def test_kb_json_summary_readability_contract_excludes_transient_progress_lines(
     assert "scope" in payload
     assert "counters" in payload
     assert "conteudo sigiloso da nota" not in output
+
+
+def test_kb_config_show_displays_detailed_settings(tmp_path: Path, monkeypatch) -> None:
+    app_module = importlib.import_module("aurora.cli.app")
+    monkeypatch.setenv("AURORA_CONFIG_DIR", str(tmp_path / "config"))
+    save_settings(
+        RuntimeSettings(
+            kb_vault_path="/vault",
+            kb_include=("notes/*.md", "daily/*.md"),
+            kb_exclude=("notes/private.md",),
+            kb_qmd_index_name="aurora-index",
+            kb_qmd_collection_name="aurora-collection",
+            kb_auto_embeddings_enabled=False,
+        )
+    )
+
+    result = RUNNER.invoke(app_module.app, ["kb", "config", "show"], prog_name="aurora")
+
+    assert result.exit_code == 0
+    output = result.output.lower()
+    assert "configuracao kb atual" in output
+    assert "vault: /vault" in output
+    assert "include: ['daily/*.md', 'notes/*.md']" in output
+    assert "exclude: ['notes/private.md']" in output
+    assert "index: aurora-index" in output
+    assert "collection: aurora-collection" in output
+    assert "auto-embeddings: desativado" in output
+
+
+def test_kb_config_set_updates_active_target_and_settings(tmp_path: Path, monkeypatch) -> None:
+    app_module = importlib.import_module("aurora.cli.app")
+    monkeypatch.setenv("AURORA_CONFIG_DIR", str(tmp_path / "config"))
+    save_settings(RuntimeSettings())
+
+    result = RUNNER.invoke(
+        app_module.app,
+        [
+            "kb",
+            "config",
+            "set",
+            "--vault",
+            "/tmp/vault",
+            "--include",
+            "notes/*.md",
+            "--include",
+            "daily/*.md",
+            "--exclude",
+            "notes/private.md",
+            "--index",
+            "team-index",
+            "--collection",
+            "team-collection",
+            "--no-auto-embeddings",
+        ],
+        prog_name="aurora",
+    )
+
+    assert result.exit_code == 0
+    settings = load_settings()
+    assert settings.kb_vault_path == "/tmp/vault"
+    assert settings.kb_include == ("daily/*.md", "notes/*.md")
+    assert settings.kb_exclude == ("notes/private.md",)
+    assert settings.kb_qmd_index_name == "team-index"
+    assert settings.kb_qmd_collection_name == "team-collection"
+    assert settings.kb_auto_embeddings_enabled is False
+
+
+def test_kb_help_and_root_help_expose_kb_config_surface(tmp_path: Path, monkeypatch) -> None:
+    app_module = importlib.import_module("aurora.cli.app")
+    monkeypatch.setenv("AURORA_CONFIG_DIR", str(tmp_path / "config"))
+    save_settings(RuntimeSettings())
+
+    kb_help = RUNNER.invoke(app_module.app, ["kb", "--help"], prog_name="aurora")
+    root_help = RUNNER.invoke(app_module.app, ["--help"], prog_name="aurora")
+
+    assert kb_help.exit_code == 0
+    assert root_help.exit_code == 0
+    assert "config" in kb_help.output.lower()
+    assert "show" in kb_help.output.lower()
+    assert "set" in kb_help.output.lower()
+    assert "kb" in root_help.output.lower()
