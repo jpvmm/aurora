@@ -53,6 +53,8 @@ class KBService:
         self,
         *,
         backend: QMDBackend | None = None,
+        index_name: str | None = None,
+        collection_name: str | None = None,
         load_settings_fn: Callable[[], RuntimeSettings] = load_settings,
         load_manifest_fn: Callable[[], KBManifest | None] = load_kb_manifest,
         save_manifest_fn: Callable[[KBManifest], KBManifest] = save_kb_manifest,
@@ -63,7 +65,11 @@ class KBService:
         self._save_manifest = save_manifest_fn
         self._now_provider = now_provider or (lambda: datetime.now(tz=timezone.utc))
         self._adapter = QMDAdapter(
-            backend=backend or QMDCliBackend(),
+            backend=backend
+            or QMDCliBackend(
+                index_name=index_name,
+                collection_name=collection_name,
+            ),
             save_manifest=save_manifest_fn,
         )
 

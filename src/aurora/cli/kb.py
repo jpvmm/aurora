@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 
 import typer
 
@@ -66,8 +67,18 @@ def kb_update_command(
         "--verify-hash",
         help="Usa hash para refinar deteccao de alteracoes em notas.",
     ),
+    index: str | None = typer.Option(
+        None,
+        "--index",
+        help="Sobrescreve indice ativo apenas nesta execucao.",
+    ),
+    collection: str | None = typer.Option(
+        None,
+        "--collection",
+        help="Sobrescreve collection ativa apenas nesta execucao.",
+    ),
 ) -> None:
-    service = KBService()
+    service = _build_service(index_name=index, collection_name=collection)
     progress = None if json_output else _render_progress
     try:
         summary = service.run_update(
@@ -89,8 +100,26 @@ def kb_delete_command(
         "--json",
         help="Renderiza resposta estruturada em JSON.",
     ),
+    yes: bool = typer.Option(
+        False,
+        "--yes",
+        help="Confirma exclusao destrutiva sem prompt interativo.",
+    ),
+    index: str | None = typer.Option(
+        None,
+        "--index",
+        help="Sobrescreve indice ativo apenas nesta execucao.",
+    ),
+    collection: str | None = typer.Option(
+        None,
+        "--collection",
+        help="Sobrescreve collection ativa apenas nesta execucao.",
+    ),
 ) -> None:
-    service = KBService()
+    if not yes and not _confirm_delete(json_output=json_output):
+        raise typer.Exit(code=1)
+
+    service = _build_service(index_name=index, collection_name=collection)
     progress = None if json_output else _render_progress
     try:
         summary = service.run_delete(on_progress=progress)
@@ -113,8 +142,18 @@ def kb_rebuild_command(
         "--dry-run",
         help="Mostra escopo e contadores previstos sem reconstruir o indice.",
     ),
+    index: str | None = typer.Option(
+        None,
+        "--index",
+        help="Sobrescreve indice ativo apenas nesta execucao.",
+    ),
+    collection: str | None = typer.Option(
+        None,
+        "--collection",
+        help="Sobrescreve collection ativa apenas nesta execucao.",
+    ),
 ) -> None:
-    service = KBService()
+    service = _build_service(index_name=index, collection_name=collection)
     progress = None if json_output else _render_progress
     try:
         summary = service.run_rebuild(dry_run=dry_run, on_progress=progress)
@@ -286,6 +325,47 @@ def _render_service_error(*, error: KBServiceError, json_output: bool) -> None:
     _render_diagnostics(error.diagnostics)
     for command in error.recovery_commands:
         typer.echo(f"recuperacao: {command}")
+
+
+def _build_service(*, index_name: str | None, collection_name: str | None) -> KBService:
+    if index_name is None and collection_name is None:
+        return KBService()
+    return KBService(index_name=index_name, collection_name=collection_name)
+
+
+def _confirm_delete(*, json_output: bool) -> bool:
+    if _is_interactive_terminal():
+        return typer.confirm(
+            "Excluir dados da collection ativa do KB? Esta acao e destrutiva.",
+            default=False,
+        )
+
+    message = (
+        "Delete exige confirmacao explicita em modo nao interativo. "
+        "Use `aurora kb delete --yes`."
+    )
+    if json_output:
+        typer.echo(
+            json.dumps(
+                {
+                    "ok": False,
+                    "category": "confirmation_required",
+                    "message": message,
+                    "recovery_commands": ["aurora kb delete --yes"],
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+        )
+        return False
+
+    typer.echo(f"erro: {message}")
+    typer.echo("recuperacao: aurora kb delete --yes")
+    return False
+
+
+def _is_interactive_terminal() -> bool:
+    return bool(sys.stdin.isatty() and sys.stdout.isatty())
 
 
 kb_app.add_typer(kb_config_app, name="config")

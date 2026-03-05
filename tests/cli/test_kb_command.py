@@ -193,7 +193,7 @@ def test_delete_command_is_index_only_and_uses_service(monkeypatch) -> None:
     fake_service = FakeKBService()
     monkeypatch.setattr(kb_module, "KBService", lambda: fake_service)
 
-    result = RUNNER.invoke(app_module.app, ["kb", "delete"], prog_name="aurora")
+    result = RUNNER.invoke(app_module.app, ["kb", "delete", "--yes"], prog_name="aurora")
 
     assert result.exit_code == 0
     assert fake_service.delete_calls == [{}]
@@ -267,7 +267,7 @@ def test_update_reports_privacy_safe_read_errors_without_forcing_delete(tmp_path
     [
         (["kb", "ingest", "/tmp/vault"], "ingest"),
         (["kb", "update"], "update"),
-        (["kb", "delete"], "delete"),
+        (["kb", "delete", "--yes"], "delete"),
         (["kb", "rebuild"], "rebuild"),
     ],
 )
@@ -304,7 +304,7 @@ def test_kb_readability_progress_stage_order_and_summary_tokens_for_each_operati
     [
         (["kb", "ingest", "/tmp/vault", "--json"], "ingest"),
         (["kb", "update", "--json"], "update"),
-        (["kb", "delete", "--json"], "delete"),
+        (["kb", "delete", "--json", "--yes"], "delete"),
         (["kb", "rebuild", "--json"], "rebuild"),
     ],
 )

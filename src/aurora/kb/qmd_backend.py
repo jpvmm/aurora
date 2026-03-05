@@ -29,12 +29,20 @@ class QMDCliBackend:
     def __init__(
         self,
         *,
+        index_name: str | None = None,
+        collection_name: str | None = None,
         command_runner: CommandRunner | None = None,
         settings_loader: SettingsLoader = load_settings,
     ) -> None:
         settings = settings_loader()
-        self.index_name = settings.kb_qmd_index_name
-        self.collection_name = settings.kb_qmd_collection_name
+        self.index_name = _resolve_identifier(
+            index_name,
+            fallback=settings.kb_qmd_index_name,
+        )
+        self.collection_name = _resolve_identifier(
+            collection_name,
+            fallback=settings.kb_qmd_collection_name,
+        )
         self.corpus_dir = get_kb_qmd_corpus_path(self.collection_name)
         self._run_command = command_runner or _default_command_runner
 
@@ -274,3 +282,14 @@ class QMDCliBackend:
 
 
 __all__ = ["QMDCliBackend"]
+
+
+def _resolve_identifier(value: str | None, *, fallback: str) -> str:
+    if value is None:
+        return fallback
+    normalized = value.strip()
+    if not normalized:
+        raise ValueError("Identificador QMD nao pode ser vazio.")
+    if "/" in normalized or "\\" in normalized:
+        raise ValueError("Identificador QMD nao pode conter separadores de caminho.")
+    return normalized
