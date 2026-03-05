@@ -196,3 +196,40 @@ def test_rejects_prepared_payload_with_mismatched_cleaned_size(tmp_path, monkeyp
     assert response.ok is False
     assert response.diagnostics[0].category == "state_mismatch"
     assert runner.calls == []
+
+
+def test_embed_runs_qmd_embed_command_and_returns_ok(tmp_path, monkeypatch) -> None:
+    config_dir = tmp_path / "config"
+    vault_path = tmp_path / "vault"
+    monkeypatch.setenv("AURORA_CONFIG_DIR", str(config_dir))
+    _configure_settings(config_dir=config_dir, vault_path=vault_path)
+
+    runner = StubRunner(FakeCompletedProcess(returncode=0))
+    backend = QMDCliBackend(command_runner=runner)
+
+    response = backend.embed()
+
+    assert response.ok is True
+    assert response.diagnostics == ()
+    assert runner.calls == [("qmd", "--index", "aurora-test-index", "embed")]
+
+
+def test_embed_failure_maps_to_typed_diagnostic_without_leaking_stderr(tmp_path, monkeypatch) -> None:
+    config_dir = tmp_path / "config"
+    vault_path = tmp_path / "vault"
+    monkeypatch.setenv("AURORA_CONFIG_DIR", str(config_dir))
+    _configure_settings(config_dir=config_dir, vault_path=vault_path)
+
+    runner = StubRunner(
+        FakeCompletedProcess(
+            returncode=1,
+            stderr="fatal embed exception: segredo super sensivel",
+        )
+    )
+    backend = QMDCliBackend(command_runner=runner)
+
+    response = backend.embed()
+
+    assert response.ok is False
+    assert response.diagnostics[0].category == "backend_embed_failed"
+    assert "segredo super sensivel" not in response.diagnostics[0].recovery_hint
