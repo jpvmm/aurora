@@ -35,6 +35,8 @@ class RuntimeSettings(BaseSettings):
     kb_qmd_index_name: str = "aurora-kb"
     kb_qmd_collection_name: str = "aurora-kb-managed"
     kb_auto_embeddings_enabled: bool = True
+    kb_scheduler_enabled: bool = False
+    kb_scheduler_hour_local: int = 9
 
     model_config = SettingsConfigDict(extra="ignore")
 
@@ -60,6 +62,13 @@ class RuntimeSettings(BaseSettings):
         if "/" in normalized or "\\" in normalized:
             raise ValueError("Identificador QMD nao pode conter separadores de caminho.")
         return normalized
+
+    @field_validator("kb_scheduler_hour_local")
+    @classmethod
+    def _validate_scheduler_hour(cls, value: int) -> int:
+        if value < 0 or value > 23:
+            raise ValueError("kb_scheduler_hour_local deve estar entre 0 e 23.")
+        return value
 
 
 def load_settings() -> RuntimeSettings:
