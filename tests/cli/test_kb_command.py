@@ -4,6 +4,7 @@ import importlib
 import json
 import re
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -582,3 +583,140 @@ def test_update_json_output_includes_embedding_stage_fields(monkeypatch) -> None
         "category": "backend_embed_failed",
         "recovery_command": "aurora kb update",
     }
+
+
+@dataclass
+class FakeSchedulerStatus:
+    enabled: bool
+    local_hour: int
+    timezone_name: str
+    next_due_at: datetime | None
+    catch_up_eligible: bool
+    last_planned_slot_at: datetime | None
+    last_run_started_at: datetime | None
+    last_run_completed_at: datetime | None
+    last_run_ok: bool | None
+    last_run_reason: str | None
+    last_error_category: str | None
+
+
+def test_kb_scheduler_status_json_contract(monkeypatch) -> None:
+    app_module = importlib.import_module("aurora.cli.app")
+    kb_module = importlib.import_module("aurora.cli.kb")
+    expected_status = FakeSchedulerStatus(
+        enabled=True,
+        local_hour=7,
+        timezone_name="UTC",
+        next_due_at=datetime(2026, 3, 6, 7, 0, tzinfo=UTC),
+        catch_up_eligible=False,
+        last_planned_slot_at=datetime(2026, 3, 5, 7, 0, tzinfo=UTC),
+        last_run_started_at=datetime(2026, 3, 5, 7, 0, tzinfo=UTC),
+        last_run_completed_at=datetime(2026, 3, 5, 7, 0, tzinfo=UTC),
+        last_run_ok=True,
+        last_run_reason="scheduled",
+        last_error_category=None,
+    )
+
+    class FakeSchedulerService:
+        def status(self, *, now=None):
+            return expected_status
+
+    monkeypatch.setattr(kb_module, "KBSchedulerService", FakeSchedulerService)
+    result = RUNNER.invoke(app_module.app, ["kb", "scheduler", "status", "--json"], prog_name="aurora")
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["enabled"] is True
+    assert payload["local_hour"] == 7
+    assert payload["timezone"] == "UTC"
+    assert payload["next_due_at"] == "2026-03-06T07:00:00Z"
+    assert payload["last_run_ok"] is True
+    assert payload["last_run_reason"] == "scheduled"
+    assert payload["catch_up_eligible"] is False
+
+
+def test_kb_scheduler_enable_disable_status_text(monkeypatch) -> None:
+    app_module = importlib.import_module("aurora.cli.app")
+    kb_module = importlib.import_module("aurora.cli.kb")
+
+    class FakeSchedulerService:
+        def __init__(self):
+            self._enabled = False
+            self._hour = 9
+
+        def enable(self, *, hour_local=None, now=None):
+            self._enabled = True
+            if hour_local is not None:
+                self._hour = hour_local
+            return self.status()
+
+        def disable(self, *, now=None):
+            self._enabled = False
+            return self.status()
+
+        def status(self, *, now=None):
+            return FakeSchedulerStatus(
+                enabled=self._enabled,
+                local_hour=self._hour,
+                timezone_name="UTC",
+                next_due_at=datetime(2026, 3, 6, self._hour, 0, tzinfo=UTC),
+                catch_up_eligible=False,
+                last_planned_slot_at=None,
+                last_run_started_at=None,
+                last_run_completed_at=None,
+                last_run_ok=None,
+                last_run_reason=None,
+                last_error_category=None,
+            )
+
+    fake = FakeSchedulerService()
+    monkeypatch.setattr(kb_module, "KBSchedulerService", lambda: fake)
+
+    enabled = RUNNER.invoke(
+        app_module.app,
+        ["kb", "scheduler", "enable", "--hour", "7"],
+        prog_name="aurora",
+    )
+    disabled = RUNNER.invoke(app_module.app, ["kb", "scheduler", "disable"], prog_name="aurora")
+    status = RUNNER.invoke(app_module.app, ["kb", "scheduler", "status"], prog_name="aurora")
+
+    assert enabled.exit_code == 0
+    assert disabled.exit_code == 0
+    assert status.exit_code == 0
+    assert "scheduler: desativado" in status.output.lower()
+    assert "hora_local: 7" in enabled.output.lower()
+    assert "proxima_execucao" in status.output.lower()
+
+
+def test_kb_scheduler_command_surfaces_actionable_recovery(monkeypatch) -> None:
+    app_module = importlib.import_module("aurora.cli.app")
+    kb_module = importlib.import_module("aurora.cli.kb")
+
+    class RaisingSchedulerService:
+        def status(self, *, now=None):
+            raise KBServiceError(
+                category="vault_not_configured",
+                message="Vault nao configurado para scheduler.",
+                recovery_commands=("aurora kb config set --vault /meu/vault",),
+            )
+
+    monkeypatch.setattr(kb_module, "KBSchedulerService", RaisingSchedulerService)
+    result = RUNNER.invoke(app_module.app, ["kb", "scheduler", "status"], prog_name="aurora")
+
+    assert result.exit_code == 1
+    output = result.output.lower()
+    assert "vault_not_configured" in output
+    assert "aurora kb config set --vault /meu/vault" in output
+
+
+def test_kb_scheduler_help_surface_is_discoverable() -> None:
+    app_module = importlib.import_module("aurora.cli.app")
+    kb_help = RUNNER.invoke(app_module.app, ["kb", "--help"], prog_name="aurora")
+    scheduler_help = RUNNER.invoke(app_module.app, ["kb", "scheduler", "--help"], prog_name="aurora")
+
+    assert kb_help.exit_code == 0
+    assert scheduler_help.exit_code == 0
+    assert "scheduler" in kb_help.output.lower()
+    assert "enable" in scheduler_help.output.lower()
+    assert "disable" in scheduler_help.output.lower()
+    assert "status" in scheduler_help.output.lower()
