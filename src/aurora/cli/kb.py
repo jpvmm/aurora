@@ -48,6 +48,7 @@ def kb_ingest_command(
         raise typer.Exit(code=1) from error
 
     _render_summary(summary=summary, json_output=json_output)
+    _raise_for_partial_embedding(summary)
 
 
 @kb_app.command("update")
@@ -91,6 +92,7 @@ def kb_update_command(
         raise typer.Exit(code=1) from error
 
     _render_summary(summary=summary, json_output=json_output)
+    _raise_for_partial_embedding(summary)
 
 
 @kb_app.command("delete")
@@ -128,6 +130,7 @@ def kb_delete_command(
         raise typer.Exit(code=1) from error
 
     _render_summary(summary=summary, json_output=json_output, index_only=True)
+    _raise_for_partial_embedding(summary)
 
 
 @kb_app.command("rebuild")
@@ -162,6 +165,7 @@ def kb_rebuild_command(
         raise typer.Exit(code=1) from error
 
     _render_summary(summary=summary, json_output=json_output)
+    _raise_for_partial_embedding(summary)
 
 
 @kb_config_app.command("show")
@@ -288,6 +292,7 @@ def _render_summary(
         f"skipped={summary.counters.skipped} "
         f"errors={summary.counters.errors}"
     )
+    _render_embedding_status(summary=summary)
     _render_diagnostics(summary.diagnostics)
 
 
@@ -299,6 +304,30 @@ def _render_diagnostics(diagnostics: tuple[KBFileDiagnostic, ...]) -> None:
             f"category={diagnostic.category} "
             f"recovery_hint={diagnostic.recovery_hint}"
         )
+
+
+def _render_embedding_status(*, summary: KBOperationSummary) -> None:
+    if summary.embedding is None:
+        return
+    if not summary.embedding.attempted:
+        typer.echo("embedding: nao executado")
+        return
+    if summary.embedding.ok:
+        typer.echo("embedding: atualizado")
+        return
+
+    typer.echo("warning: embeddings desatualizados (falha parcial)")
+    if summary.embedding.category:
+        typer.echo(f"embedding_category: {summary.embedding.category}")
+    if summary.embedding.recovery_command:
+        typer.echo(f"recuperacao: {summary.embedding.recovery_command}")
+
+
+def _raise_for_partial_embedding(summary: KBOperationSummary) -> None:
+    if summary.embedding is None:
+        return
+    if summary.embedding.attempted and not summary.embedding.ok:
+        raise typer.Exit(code=2)
 
 
 def _render_service_error(*, error: KBServiceError, json_output: bool) -> None:
