@@ -10,7 +10,7 @@ from aurora.kb.manifest import KBManifest, KBManifestNoteRecord, load_kb_manifes
 from aurora.kb.qmd_backend import QMDCliBackend
 from aurora.kb.qmd_adapter import QMDBackendDiagnostic, QMDBackendResponse
 from aurora.kb.service import KBService, KBServiceError
-from aurora.runtime.settings import RuntimeSettings, save_settings
+from aurora.runtime.settings import RuntimeSettings, load_settings, save_settings
 
 
 def _write_note(path: Path, content: str) -> None:
@@ -237,3 +237,26 @@ def test_service_uses_qmd_cli_backend_by_default() -> None:
     service = KBService()
 
     assert isinstance(service._adapter._backend, QMDCliBackend)
+
+
+def test_service_threads_command_target_overrides_without_persisting_settings(tmp_path, monkeypatch) -> None:
+    config_dir = tmp_path / "config"
+    vault_path = tmp_path / "vault"
+    monkeypatch.setenv("AURORA_CONFIG_DIR", str(config_dir))
+    save_settings(
+        RuntimeSettings(
+            kb_vault_path=str(vault_path),
+            kb_qmd_index_name="global-index",
+            kb_qmd_collection_name="global-collection",
+        )
+    )
+
+    service = KBService(index_name="tmp-index", collection_name="tmp-collection")
+
+    backend = service._adapter._backend
+    assert isinstance(backend, QMDCliBackend)
+    assert backend.index_name == "tmp-index"
+    assert backend.collection_name == "tmp-collection"
+    persisted = load_settings()
+    assert persisted.kb_qmd_index_name == "global-index"
+    assert persisted.kb_qmd_collection_name == "global-collection"

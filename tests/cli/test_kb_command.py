@@ -412,3 +412,86 @@ def test_kb_help_and_root_help_expose_kb_config_surface(tmp_path: Path, monkeypa
     assert "show" in kb_config_help.output.lower()
     assert "set" in kb_config_help.output.lower()
     assert "kb" in root_help.output.lower()
+
+
+@pytest.mark.parametrize(
+    ("command", "call_attr"),
+    [
+        (["kb", "update", "--index", "tmp-index", "--collection", "tmp-collection"], "update_calls"),
+        (
+            ["kb", "delete", "--yes", "--index", "tmp-index", "--collection", "tmp-collection"],
+            "delete_calls",
+        ),
+        (["kb", "rebuild", "--index", "tmp-index", "--collection", "tmp-collection"], "rebuild_calls"),
+    ],
+)
+def test_kb_command_target_overrides_are_command_scoped(
+    tmp_path: Path,
+    monkeypatch,
+    command: list[str],
+    call_attr: str,
+) -> None:
+    app_module = importlib.import_module("aurora.cli.app")
+    kb_module = importlib.import_module("aurora.cli.kb")
+    monkeypatch.setenv("AURORA_CONFIG_DIR", str(tmp_path / "config"))
+    save_settings(
+        RuntimeSettings(
+            kb_vault_path="/vault",
+            kb_qmd_index_name="global-index",
+            kb_qmd_collection_name="global-collection",
+        )
+    )
+    fake_service = FakeKBService()
+    constructor_calls: list[dict[str, object]] = []
+
+    def factory(*, index_name: str | None = None, collection_name: str | None = None):
+        constructor_calls.append({"index_name": index_name, "collection_name": collection_name})
+        return fake_service
+
+    monkeypatch.setattr(kb_module, "KBService", factory)
+    result = RUNNER.invoke(app_module.app, command, prog_name="aurora")
+
+    assert result.exit_code == 0
+    assert constructor_calls == [{"index_name": "tmp-index", "collection_name": "tmp-collection"}]
+    assert getattr(fake_service, call_attr) != []
+    persisted = load_settings()
+    assert persisted.kb_qmd_index_name == "global-index"
+    assert persisted.kb_qmd_collection_name == "global-collection"
+
+
+def test_kb_delete_requires_yes_when_non_interactive(tmp_path: Path, monkeypatch) -> None:
+    app_module = importlib.import_module("aurora.cli.app")
+    kb_module = importlib.import_module("aurora.cli.kb")
+    monkeypatch.setenv("AURORA_CONFIG_DIR", str(tmp_path / "config"))
+    save_settings(RuntimeSettings(kb_vault_path="/vault"))
+    fake_service = FakeKBService()
+    monkeypatch.setattr(kb_module, "KBService", lambda: fake_service)
+    monkeypatch.setattr(kb_module, "_is_interactive_terminal", lambda: False)
+
+    result = RUNNER.invoke(app_module.app, ["kb", "delete"], prog_name="aurora")
+
+    assert result.exit_code == 1
+    output = result.output.lower()
+    assert "confirmacao explicita" in output
+    assert "aurora kb delete --yes" in output
+    assert fake_service.delete_calls == []
+
+
+def test_kb_delete_interactive_confirmation_controls_execution(tmp_path: Path, monkeypatch) -> None:
+    app_module = importlib.import_module("aurora.cli.app")
+    kb_module = importlib.import_module("aurora.cli.kb")
+    monkeypatch.setenv("AURORA_CONFIG_DIR", str(tmp_path / "config"))
+    save_settings(RuntimeSettings(kb_vault_path="/vault"))
+    monkeypatch.setattr(kb_module, "_is_interactive_terminal", lambda: True)
+
+    decline_service = FakeKBService()
+    monkeypatch.setattr(kb_module, "KBService", lambda: decline_service)
+    decline = RUNNER.invoke(app_module.app, ["kb", "delete"], input="n\n", prog_name="aurora")
+    assert decline.exit_code == 1
+    assert decline_service.delete_calls == []
+
+    confirm_service = FakeKBService()
+    monkeypatch.setattr(kb_module, "KBService", lambda: confirm_service)
+    confirm = RUNNER.invoke(app_module.app, ["kb", "delete"], input="y\n", prog_name="aurora")
+    assert confirm.exit_code == 0
+    assert confirm_service.delete_calls == [{}]
