@@ -38,12 +38,11 @@ created: 2026-04-03
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| 03-01-01 | 01 | 1 | RET-03 | integration | `uv run pytest tests/retrieval/test_qmd_search.py -v` | ❌ W0 | ⬜ pending |
-| 03-01-02 | 01 | 1 | RET-01 | unit | `uv run pytest tests/retrieval/test_context_assembly.py -v` | ❌ W0 | ⬜ pending |
-| 03-02-01 | 02 | 1 | RET-01, RET-02 | unit | `uv run pytest tests/retrieval/test_grounded_response.py -v` | ❌ W0 | ⬜ pending |
-| 03-02-02 | 02 | 1 | RET-04 | unit | `uv run pytest tests/retrieval/test_insufficient_evidence.py -v` | ❌ W0 | ⬜ pending |
-| 03-03-01 | 03 | 2 | CLI-03 | unit | `uv run pytest tests/cli/test_ask_command.py -v` | ❌ W0 | ⬜ pending |
-| 03-04-01 | 04 | 2 | RET-01 | unit | `uv run pytest tests/cli/test_chat_command.py -v` | ❌ W0 | ⬜ pending |
+| 03-01-T1 | 01 | 1 | RET-01, RET-03, RET-04 | unit | `uv run pytest tests/retrieval/ -x -q` | ❌ W0 | ⬜ pending |
+| 03-01-T2 | 01 | 1 | RET-01, RET-02, CLI-03 | unit | `uv run pytest tests/llm/ -x -q` | ❌ W0 | ⬜ pending |
+| 03-02-T1 | 02 | 2 | RET-01, RET-02, RET-04, CLI-03 | unit | `uv run pytest tests/cli/test_ask_command.py -x -q` | ❌ W0 | ⬜ pending |
+| 03-03-T1 | 03 | 2 | RET-01, RET-04, CLI-03 | unit | `uv run pytest tests/chat/ -x -q` | ❌ W0 | ⬜ pending |
+| 03-03-T2 | 03 | 2 | RET-01, CLI-03 | unit | `uv run pytest tests/cli/test_chat_command.py -x -q` | ❌ W0 | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -51,13 +50,15 @@ created: 2026-04-03
 
 ## Wave 0 Requirements
 
-- [ ] `tests/retrieval/test_qmd_search.py` — stubs for QMD query integration (RET-03)
-- [ ] `tests/retrieval/test_context_assembly.py` — stubs for full-note assembly + truncation (RET-01)
-- [ ] `tests/retrieval/test_grounded_response.py` — stubs for grounded generation with citations (RET-01, RET-02)
-- [ ] `tests/retrieval/test_insufficient_evidence.py` — stubs for min-score refusal (RET-04)
+- [ ] `tests/retrieval/test_qmd_search.py` — stubs for QMD search backend (RET-03)
+- [ ] `tests/retrieval/test_retrieval_service.py` — stubs for retrieval service + truncation (RET-01, RET-04)
+- [ ] `tests/llm/test_prompts.py` — stubs for system prompts (RET-02, CLI-03)
+- [ ] `tests/llm/test_streaming.py` — stubs for SSE streaming parser
+- [ ] `tests/llm/test_llm_service.py` — stubs for LLM service (RET-01)
 - [ ] `tests/cli/test_ask_command.py` — stubs for aurora ask command (RET-01)
-- [ ] `tests/cli/test_chat_command.py` — stubs for aurora chat with intent routing (CLI-03)
-- [ ] `tests/retrieval/conftest.py` — shared fixtures for retrieval tests
+- [ ] `tests/chat/test_history.py` — stubs for JSONL chat history
+- [ ] `tests/chat/test_session.py` — stubs for chat session + intent routing (CLI-03)
+- [ ] `tests/cli/test_chat_command.py` — stubs for aurora chat command
 
 ---
 
