@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-03-05T17:34:00.793Z"
+last_updated: "2026-04-03T23:22:32.680Z"
 progress:
-  total_phases: 4
+  total_phases: 8
   completed_phases: 4
   total_plans: 19
-  completed_plans: 19
+  completed_plans: 20
 ---
 
 # STATE: Aurora
@@ -16,16 +16,16 @@ progress:
 ## Project Reference
 
 - **Core value**: Total privacy with useful long-term memory over the vault, without external services.
-- **Current focus**: Phase 02.1 plan 03 completed (scheduler lifecycle + shared KB mutation lock).
+- **Current focus**: Phase 03 plan 01 completed (retrieval + LLM foundation services).
 - **Depth mode**: comprehensive
 
 ## Current Position
 
-- **Current phase**: 02.1 - KB UX + Auto-Embeddings (Inserted)
-- **Current plan**: Phase 02.1 complete; next planning target is Phase 3.
-- **Status**: Phase 02.1 complete (3/3 plans executed)
-- **Overall progress**: 19/19 plans complete
-- **Progress bar**: [#######] 100%
+- **Current phase**: 03 - Grounded Retrieval Experience
+- **Current plan**: Plan 01 complete; next is Plan 02 (aurora ask command).
+- **Status**: Phase 03 plan 01 complete
+- **Overall progress**: 20/20 plans complete
+- **Progress bar**: [██████████] 100%
 
 ## Performance Metrics
 
@@ -38,10 +38,12 @@ progress:
 ## Accumulated Context
 
 ### Roadmap Evolution
+
 - Phase 01.1 inserted after Phase 1: llama.cpp server lifecycle via CLI (auto start/stop + health/status) (URGENT)
 - Phase 02.1 inserted after Phase 2: the aurora kb suit needs working. it need to be easier to configure update/delete collections and ir need to generate embeddings automatically without qmd. (URGENT)
 
 ### Decisions
+
 - Roadmap derived from six natural capability boundaries: runtime baseline, KB lifecycle, retrieval, memory fusion, operational commands, and observability hardening.
 - Requirement mapping enforced as one-to-one phase ownership for all v1 IDs.
 - Success criteria defined as observable user behaviors for downstream planning and verification.
@@ -95,20 +97,25 @@ progress:
 - [Phase 02.1-the-aurora-kb-suit-needs-working-it-need-to-be-easier-to-configure-update-delete-collections-and-ir-need-to-generate-embeddings-automatically-without-qmd]: All KB mutating service operations now acquire one shared kb.lock to serialize manual and scheduled writes.
 - [Phase 02.1-the-aurora-kb-suit-needs-working-it-need-to-be-easier-to-configure-update-delete-collections-and-ir-need-to-generate-embeddings-automatically-without-qmd]: Scheduler cadence is tracked via persisted last_planned_slot_utc so missed windows trigger one catch-up run without backlog replay.
 - [Phase 02.1-the-aurora-kb-suit-needs-working-it-need-to-be-easier-to-configure-update-delete-collections-and-ir-need-to-generate-embeddings-automatically-without-qmd]: Scheduler CLI status uses deterministic UTC Z timestamps in both text and JSON outputs.
+- [Phase 03-grounded-retrieval-experience]: QMDSearchBackend.search() formats min_score as f'{value:.2f}' for qmd --min-score flag
+- [Phase 03-grounded-retrieval-experience]: LLMService.classify_intent() sends only single intent-formatted message with no conversation history (D-14, Pitfall 5)
+- [Phase 03-grounded-retrieval-experience]: STREAM_TIMEOUT_SECONDS=120 is separate from 3s health probe timeout in LlamaRuntimeClient
 
 ### TODOs
+
 - Run verification/UAT for phase 01.1 lifecycle command UX (`model start|stop|status|health` and setup auto-start flow).
 - Plan and execute Phase 3 (Grounded Retrieval Experience).
 
 ### Blockers
+
 - None.
 
 ## Session Continuity
 
-- **Last action**: Executed `02.1-03-PLAN.md` and created `02.1-03-SUMMARY.md`.
-- **Next command**: `/gsd:plan-phase 3-grounded-retrieval-experience`
-- **If resuming later**: Open `.planning/phases/02.1-the-aurora-kb-suit-needs-working-it-need-to-be-easier-to-configure-update-delete-collections-and-ir-need-to-generate-embeddings-automatically-without-qmd/02.1-03-SUMMARY.md`.
+- **Last action**: Executed `03-01-PLAN.md` and created `03-01-SUMMARY.md`.
+- **Next command**: Execute Phase 03 Plan 02 (aurora ask command).
+- **If resuming later**: Open `.planning/phases/03-grounded-retrieval-experience/03-01-SUMMARY.md`.
 
 ---
 *Initialized: 2026-03-01*
-*Last updated: 2026-03-05 after executing phase 02.1 plan 03*
+*Last updated: 2026-04-03 after executing phase 03 plan 01*

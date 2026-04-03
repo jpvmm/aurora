@@ -17,10 +17,10 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Retrieval
 
-- [ ] **RET-01**: User can ask questions in CLI and receive answers grounded in vault content.
-- [ ] **RET-02**: User receives citations with note path and section reference for each grounded answer.
-- [ ] **RET-03**: User query uses hybrid retrieval (keyword + semantic) for evidence selection.
-- [ ] **RET-04**: User gets explicit "insufficient evidence" response when vault context is not enough.
+- [x] **RET-01**: User can ask questions in CLI and receive answers grounded in vault content.
+- [x] **RET-02**: User receives citations with note path and section reference for each grounded answer.
+- [x] **RET-03**: User query uses hybrid retrieval (keyword + semantic) for evidence selection.
+- [x] **RET-04**: User gets explicit "insufficient evidence" response when vault context is not enough.
 
 ### Memory
 
@@ -33,7 +33,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [x] **CLI-01**: User can invoke Aurora globally from any terminal directory after installation.
 - [x] **CLI-02**: User can use dedicated CLI commands for ingest, update, delete, ask, and status operations.
-- [ ] **CLI-03**: Assistant replies in pt-BR by default and only changes language when user requests.
+- [x] **CLI-03**: Assistant replies in pt-BR by default and only changes language when user requests.
 - [x] **CLI-04**: User can run a `doctor` command to validate local runtime dependencies and model readiness.
 
 ### Model Setup
@@ -91,17 +91,17 @@ Which phases cover which requirements. Updated during roadmap creation.
 | KB-03 | Phase 2 | Complete |
 | KB-04 | Phase 2 | Complete |
 | KB-05 | Phase 2 | Complete |
-| RET-01 | Phase 3 | Pending |
-| RET-02 | Phase 3 | Pending |
-| RET-03 | Phase 3 | Pending |
-| RET-04 | Phase 3 | Pending |
+| RET-01 | Phase 3 | Complete |
+| RET-02 | Phase 3 | Complete |
+| RET-03 | Phase 3 | Complete |
+| RET-04 | Phase 3 | Complete |
 | MEM-01 | Phase 4 | Pending |
 | MEM-02 | Phase 4 | Pending |
 | MEM-03 | Phase 4 | Pending |
 | MEM-04 | Phase 4 | Pending |
 | CLI-01 | Phase 1 | Complete |
 | CLI-02 | Phase 5 | Complete |
-| CLI-03 | Phase 3 | Pending |
+| CLI-03 | Phase 3 | Complete |
 | CLI-04 | Phase 5 | Complete |
 | MOD-01 | Phase 1 | Complete |
 | MOD-02 | Phase 6 | Pending |

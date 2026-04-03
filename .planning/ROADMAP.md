@@ -19,7 +19,7 @@
 |-------|----------------|--------|-----------|
 | 1. Local Runtime Baseline | 5/5 | Complete    | 2026-03-02 |
 | 2. Vault Knowledge Base Lifecycle | 6/6 | Complete   | 2026-03-04 |
-| 3. Grounded Retrieval Experience | 0/1 | Not started | - |
+| 3. Grounded Retrieval Experience | 1/? | In progress | - |
 | 4. Long-Term Memory Fusion | 0/1 | Not started | - |
 | 5. Operational Command Surface | 0/1 | Not started | - |
 | 6. Runtime Profiles and Safe Observability | 0/1 | Not started | - |
@@ -98,7 +98,10 @@ Plans:
 3. Evidence selection uses hybrid retrieval (keyword + semantic) for queries.
 4. User receives explicit insufficient-evidence responses when vault context is not enough.
 5. Assistant responds in pt-BR by default and changes language only when requested.
-**Plans**: TBD
+**Plans**: TBD (1 complete)
+
+Plans:
+- [x] `03-01-PLAN.md` - Build retrieval and LLM foundation: QMDSearchBackend, RetrievalService, LLMService, SSE streaming, and grounding prompts. (`03-01-SUMMARY.md`, 2026-04-03)
 
 ### Phase 4: Long-Term Memory Fusion
 **Goal**: User can carry useful context across sessions and get responses that combine memory with KB evidence.
