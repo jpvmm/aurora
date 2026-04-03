@@ -19,7 +19,7 @@
 |-------|----------------|--------|-----------|
 | 1. Local Runtime Baseline | 5/5 | Complete    | 2026-03-02 |
 | 2. Vault Knowledge Base Lifecycle | 6/6 | Complete   | 2026-03-04 |
-| 3. Grounded Retrieval Experience | 0/1 | Not started | - |
+| 3. Grounded Retrieval Experience | 0/3 | Not started | - |
 | 4. Long-Term Memory Fusion | 0/1 | Not started | - |
 | 5. Operational Command Surface | 0/1 | Not started | - |
 | 6. Runtime Profiles and Safe Observability | 0/1 | Not started | - |
@@ -98,7 +98,12 @@ Plans:
 3. Evidence selection uses hybrid retrieval (keyword + semantic) for queries.
 4. User receives explicit insufficient-evidence responses when vault context is not enough.
 5. Assistant responds in pt-BR by default and changes language only when requested.
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] `03-01-PLAN.md` — Build retrieval contracts, QMD search backend, LLM streaming/prompts, and RetrievalService + LLMService foundation.
+- [ ] `03-02-PLAN.md` — Wire `aurora ask` single-shot grounded Q&A command with streaming output and --json flag.
+- [ ] `03-03-PLAN.md` — Build chat history persistence, ChatSession with intent routing, and `aurora chat` interactive command.
 
 ### Phase 4: Long-Term Memory Fusion
 **Goal**: User can carry useful context across sessions and get responses that combine memory with KB evidence.
@@ -164,4 +169,4 @@ Orphans: 0
 Duplicates: 0
 
 ---
-*Last updated: 2026-03-05 after executing phase 02.1 plan 01*
+*Last updated: 2026-04-03 after planning phase 03*
