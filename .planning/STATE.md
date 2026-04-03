@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: unknown
-last_updated: "2026-04-03T23:22:32.680Z"
+status: Executing Phase 03
+last_updated: "2026-04-03T23:30:00.000Z"
 progress:
   total_phases: 8
   completed_phases: 4
-  total_plans: 19
-  completed_plans: 20
+  total_plans: 22
+  completed_plans: 21
 ---
 
 # STATE: Aurora
@@ -16,15 +16,15 @@ progress:
 ## Project Reference
 
 - **Core value**: Total privacy with useful long-term memory over the vault, without external services.
-- **Current focus**: Phase 03 plan 01 completed (retrieval + LLM foundation services).
+- **Current focus**: Phase 03 plan 02 completed (aurora ask grounded Q&A command).
 - **Depth mode**: comprehensive
 
 ## Current Position
 
 - **Current phase**: 03 - Grounded Retrieval Experience
-- **Current plan**: Plan 01 complete; next is Plan 02 (aurora ask command).
-- **Status**: Phase 03 plan 01 complete
-- **Overall progress**: 20/20 plans complete
+- **Current plan**: Plan 02 complete; next is Plan 03 (aurora chat interactive command).
+- **Status**: Phase 03 plan 02 complete (2/3 plans executed)
+- **Overall progress**: 21/22 plans complete
 - **Progress bar**: [██████████] 100%
 
 ## Performance Metrics
@@ -38,12 +38,10 @@ progress:
 ## Accumulated Context
 
 ### Roadmap Evolution
-
 - Phase 01.1 inserted after Phase 1: llama.cpp server lifecycle via CLI (auto start/stop + health/status) (URGENT)
 - Phase 02.1 inserted after Phase 2: the aurora kb suit needs working. it need to be easier to configure update/delete collections and ir need to generate embeddings automatically without qmd. (URGENT)
 
 ### Decisions
-
 - Roadmap derived from six natural capability boundaries: runtime baseline, KB lifecycle, retrieval, memory fusion, operational commands, and observability hardening.
 - Requirement mapping enforced as one-to-one phase ownership for all v1 IDs.
 - Success criteria defined as observable user behaviors for downstream planning and verification.
@@ -100,22 +98,21 @@ progress:
 - [Phase 03-grounded-retrieval-experience]: QMDSearchBackend.search() formats min_score as f'{value:.2f}' for qmd --min-score flag
 - [Phase 03-grounded-retrieval-experience]: LLMService.classify_intent() sends only single intent-formatted message with no conversation history (D-14, Pitfall 5)
 - [Phase 03-grounded-retrieval-experience]: STREAM_TIMEOUT_SECONDS=120 is separate from 3s health probe timeout in LlamaRuntimeClient
+- [Phase 03-grounded-retrieval-experience]: aurora ask uses context_settings allow_interspersed_args=True on Typer to support --json after positional QUERY arg
+- [Phase 03-grounded-retrieval-experience]: ask_app callback pattern: aurora ask 'query' works as single-command sub-typer, no intent routing (D-15)
 
 ### TODOs
-
 - Run verification/UAT for phase 01.1 lifecycle command UX (`model start|stop|status|health` and setup auto-start flow).
-- Plan and execute Phase 3 (Grounded Retrieval Experience).
 
 ### Blockers
-
 - None.
 
 ## Session Continuity
 
-- **Last action**: Executed `03-01-PLAN.md` and created `03-01-SUMMARY.md`.
-- **Next command**: Execute Phase 03 Plan 02 (aurora ask command).
-- **If resuming later**: Open `.planning/phases/03-grounded-retrieval-experience/03-01-SUMMARY.md`.
+- **Last action**: Executed `03-02-PLAN.md` and created `03-02-SUMMARY.md`.
+- **Next command**: Execute Phase 03 Plan 03 (aurora chat interactive command).
+- **If resuming later**: Open `.planning/phases/03-grounded-retrieval-experience/03-02-SUMMARY.md`.
 
 ---
 *Initialized: 2026-03-01*
-*Last updated: 2026-04-03 after executing phase 03 plan 01*
+*Last updated: 2026-04-03 after executing phase 03 plan 02*

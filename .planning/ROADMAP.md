@@ -19,7 +19,7 @@
 |-------|----------------|--------|-----------|
 | 1. Local Runtime Baseline | 5/5 | Complete    | 2026-03-02 |
 | 2. Vault Knowledge Base Lifecycle | 6/6 | Complete   | 2026-03-04 |
-| 3. Grounded Retrieval Experience | 1/3 | In progress | - |
+| 3. Grounded Retrieval Experience | 2/3 | In progress | - |
 | 4. Long-Term Memory Fusion | 0/1 | Not started | - |
 | 5. Operational Command Surface | 0/1 | Not started | - |
 | 6. Runtime Profiles and Safe Observability | 0/1 | Not started | - |
@@ -102,7 +102,7 @@ Plans:
 
 Plans:
 - [x] `03-01-PLAN.md` — Build retrieval contracts, QMD search backend, LLM streaming/prompts, and RetrievalService + LLMService foundation. (`03-01-SUMMARY.md`, 2026-04-03)
-- [ ] `03-02-PLAN.md` — Wire `aurora ask` single-shot grounded Q&A command with streaming output and --json flag.
+- [x] `03-02-PLAN.md` — Wire `aurora ask` single-shot grounded Q&A command with streaming output and --json flag. (`03-02-SUMMARY.md`, 2026-04-03)
 - [ ] `03-03-PLAN.md` — Build chat history persistence, ChatSession with intent routing, and `aurora chat` interactive command.
 
 ### Phase 4: Long-Term Memory Fusion
