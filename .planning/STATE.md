@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-04-03T23:22:32.680Z"
+last_updated: "2026-04-03T23:31:32.956Z"
 progress:
   total_phases: 8
   completed_phases: 4
-  total_plans: 19
-  completed_plans: 20
+  total_plans: 22
+  completed_plans: 21
 ---
 
 # STATE: Aurora
@@ -100,6 +100,8 @@ progress:
 - [Phase 03-grounded-retrieval-experience]: QMDSearchBackend.search() formats min_score as f'{value:.2f}' for qmd --min-score flag
 - [Phase 03-grounded-retrieval-experience]: LLMService.classify_intent() sends only single intent-formatted message with no conversation history (D-14, Pitfall 5)
 - [Phase 03-grounded-retrieval-experience]: STREAM_TIMEOUT_SECONDS=120 is separate from 3s health probe timeout in LlamaRuntimeClient
+- [Phase 03]: ChatHistory.get_recent strips ts field returning only role+content for direct LLM messages array use
+- [Phase 03]: ChatSession persists history only after assistant response computed to avoid orphaned user records on LLM failure
 
 ### TODOs
 
