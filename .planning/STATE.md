@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Executing Phase 03
-last_updated: "2026-04-03T23:31:32.956Z"
+status: Ready to plan
+last_updated: "2026-04-03T23:38:29.043Z"
 progress:
   total_phases: 8
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 22
-  completed_plans: 21
+  completed_plans: 22
 ---
 
 # STATE: Aurora
@@ -38,10 +38,12 @@ progress:
 ## Accumulated Context
 
 ### Roadmap Evolution
+
 - Phase 01.1 inserted after Phase 1: llama.cpp server lifecycle via CLI (auto start/stop + health/status) (URGENT)
 - Phase 02.1 inserted after Phase 2: the aurora kb suit needs working. it need to be easier to configure update/delete collections and ir need to generate embeddings automatically without qmd. (URGENT)
 
 ### Decisions
+
 - Roadmap derived from six natural capability boundaries: runtime baseline, KB lifecycle, retrieval, memory fusion, operational commands, and observability hardening.
 - Requirement mapping enforced as one-to-one phase ownership for all v1 IDs.
 - Success criteria defined as observable user behaviors for downstream planning and verification.
@@ -104,9 +106,11 @@ progress:
 - [Phase 03]: ChatSession persists history only after assistant response computed to avoid orphaned user records on LLM failure
 
 ### TODOs
+
 - Run verification/UAT for phase 01.1 lifecycle command UX (`model start|stop|status|health` and setup auto-start flow).
 
 ### Blockers
+
 - None.
 
 ## Session Continuity
