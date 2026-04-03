@@ -3,6 +3,7 @@
 import typer
 
 from aurora.cli.ask import ask_app
+from aurora.cli.chat import chat_app
 from aurora.cli.config import config_app
 from aurora.cli.doctor import doctor_app
 from aurora.cli.kb import kb_app
@@ -34,3 +35,4 @@ app.add_typer(model_app, name="model")
 app.add_typer(doctor_app, name="doctor")
 app.add_typer(kb_app, name="kb")
 app.add_typer(ask_app, name="ask")
+app.add_typer(chat_app, name="chat")

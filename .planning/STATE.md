@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Executing Phase 03
-last_updated: "2026-04-03T23:30:00.000Z"
+last_updated: "2026-04-03T23:31:32.956Z"
 progress:
   total_phases: 8
   completed_phases: 4
@@ -100,6 +100,8 @@ progress:
 - [Phase 03-grounded-retrieval-experience]: STREAM_TIMEOUT_SECONDS=120 is separate from 3s health probe timeout in LlamaRuntimeClient
 - [Phase 03-grounded-retrieval-experience]: aurora ask uses context_settings allow_interspersed_args=True on Typer to support --json after positional QUERY arg
 - [Phase 03-grounded-retrieval-experience]: ask_app callback pattern: aurora ask 'query' works as single-command sub-typer, no intent routing (D-15)
+- [Phase 03]: ChatHistory.get_recent strips ts field returning only role+content for direct LLM messages array use
+- [Phase 03]: ChatSession persists history only after assistant response computed to avoid orphaned user records on LLM failure
 
 ### TODOs
 - Run verification/UAT for phase 01.1 lifecycle command UX (`model start|stop|status|health` and setup auto-start flow).

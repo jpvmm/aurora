@@ -1,0 +1,105 @@
+"""ChatSession — per-turn intent routing loop for Aurora chat sessions."""
+from __future__ import annotations
+
+import logging
+from typing import Callable
+
+from aurora.chat.history import ChatHistory
+from aurora.llm.prompts import INSUFFICIENT_EVIDENCE_MSG, SYSTEM_PROMPT_CHAT, SYSTEM_PROMPT_GROUNDED
+from aurora.llm.service import LLMService
+from aurora.retrieval.service import RetrievalService
+from aurora.runtime.settings import RuntimeSettings, load_settings
+
+logger = logging.getLogger(__name__)
+
+
+class ChatSession:
+    """Manages a multi-turn chat session with intent-based routing.
+
+    Each user message is classified as 'vault' or 'chat':
+    - vault: triggers KB retrieval + grounded response (per D-13, D-14)
+    - chat: free-form response using conversation history
+
+    History is persisted to disk after each turn (per D-12).
+    Context window is capped to max_turns pairs (Pitfall 6).
+    """
+
+    def __init__(
+        self,
+        *,
+        history: ChatHistory | None = None,
+        retrieval: RetrievalService | None = None,
+        llm: LLMService | None = None,
+        settings_loader: Callable[[], RuntimeSettings] = load_settings,
+        on_token: Callable[[str], None] | None = None,
+        on_insufficient: Callable[[str], None] | None = None,
+    ) -> None:
+        settings = settings_loader()
+        self._history = history or ChatHistory()
+        self._retrieval = retrieval or RetrievalService()
+        self._llm = llm or LLMService()
+        self._max_turns = settings.chat_history_max_turns
+        self._on_token = on_token or (lambda t: print(t, end="", flush=True))
+        self._on_insufficient = on_insufficient or (lambda msg: print(msg))
+
+    def process_turn(self, user_message: str) -> str:
+        """Process a single user turn through intent classification and routing.
+
+        Classifies intent using only the latest message (per Pitfall 5, D-14).
+        Vault turns trigger fresh KB retrieval (per D-13).
+        Both user message and assistant response are persisted to history (per D-12).
+
+        Returns the assistant response text.
+        """
+        # Classify intent using only the latest message (per Pitfall 5, D-14)
+        intent = self._llm.classify_intent(user_message)
+        logger.debug("Intent classification: message=%r -> %s", user_message[:50], intent)
+
+        if intent == "vault":
+            response = self._handle_vault_turn(user_message)
+        else:
+            response = self._handle_chat_turn(user_message)
+
+        # Persist both turns to history (per D-12)
+        self._history.append_turn("user", user_message)
+        self._history.append_turn("assistant", response)
+
+        return response
+
+    def _handle_vault_turn(self, user_message: str) -> str:
+        """Handle a vault-intent turn: retrieve from KB then generate grounded response."""
+        # Re-retrieve from KB on each turn (per D-13)
+        result = self._retrieval.retrieve(user_message)
+        logger.debug(
+            "Vault retrieval: %d notes, paths=%s",
+            len(result.notes),
+            [(n.path, n.score) for n in result.notes],
+        )
+
+        if result.insufficient_evidence:
+            self._on_insufficient(INSUFFICIENT_EVIDENCE_MSG)
+            return INSUFFICIENT_EVIDENCE_MSG
+
+        # Use ask_grounded with vault context (LLMService internally uses SYSTEM_PROMPT_GROUNDED)
+        response = self._llm.ask_grounded(
+            user_message,
+            result.context_text,
+            on_token=self._on_token,
+        )
+        print()  # final newline after streaming
+        return response
+
+    def _handle_chat_turn(self, user_message: str) -> str:
+        """Handle a chat-intent turn: free-form response using conversation history."""
+        # Build messages with SYSTEM_PROMPT_CHAT + recent history + current message
+        recent = self._history.get_recent(max_turns=self._max_turns)
+        messages = [{"role": "system", "content": SYSTEM_PROMPT_CHAT}]
+        messages.extend(recent)
+        messages.append({"role": "user", "content": user_message})
+
+        response = self._llm.chat_turn(messages, on_token=self._on_token)
+        print()  # final newline after streaming
+        return response
+
+
+__all__ = ["ChatSession"]
