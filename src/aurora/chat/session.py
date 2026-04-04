@@ -41,6 +41,41 @@ class ChatSession:
         self._max_turns = settings.chat_history_max_turns
         self._on_token = on_token or (lambda t: print(t, end="", flush=True))
         self._on_insufficient = on_insufficient or (lambda msg: print(msg))
+        self._turn_count: int = 0
+        # Snapshot history length at session start to isolate current session turns (per Pitfall 8)
+        self._session_start_index: int = len(self._history.load())
+
+    @property
+    def turn_count(self) -> int:
+        """Number of completed turns in this session (incremented after each process_turn)."""
+        return self._turn_count
+
+    @property
+    def session_start_index(self) -> int:
+        """Index into history marking the start of this session (per Pitfall 8)."""
+        return self._session_start_index
+
+    @property
+    def history(self) -> ChatHistory:
+        """Public access to conversation history."""
+        return self._history
+
+    @property
+    def llm(self) -> LLMService:
+        """Public access to LLM service (for background save in CLI)."""
+        return self._llm
+
+    def get_session_turns(self) -> list[dict[str, str]]:
+        """Return only the turns from the current session (post session_start_index).
+
+        Filters out historical turns from prior sessions.
+        Returns role + content only (strips ts field).
+        """
+        all_turns = self._history.load()
+        return [
+            {"role": t["role"], "content": t["content"]}
+            for t in all_turns[self._session_start_index:]
+        ]
 
     def process_turn(self, user_message: str) -> str:
         """Process a single user turn through intent classification and routing.
@@ -64,6 +99,7 @@ class ChatSession:
         self._history.append_turn("user", user_message)
         self._history.append_turn("assistant", response)
 
+        self._turn_count += 1
         return response
 
     def _handle_vault_turn(self, user_message: str) -> str:
@@ -103,3 +139,4 @@ class ChatSession:
 
 
 __all__ = ["ChatSession"]
+

@@ -26,9 +26,21 @@ INSUFFICIENT_EVIDENCE_MSG = (
     "Tente reformular ou verifique se o topico esta indexado."
 )
 
+SUMMARIZE_SESSION_PROMPT = """Resuma a conversa a seguir de forma concisa e util para consulta futura.
+
+Formato obrigatorio:
+- Primeira linha: titulo curto (maximo 60 caracteres) descrevendo o tema principal
+- Linhas seguintes: resumo em 2-4 paragrafos capturando os pontos chave, decisoes, e informacoes relevantes
+
+Nao inclua saudacoes ou preambulos. Va direto ao conteudo.
+
+Conversa:
+{conversation}"""
+
 __all__ = [
     "SYSTEM_PROMPT_GROUNDED",
     "SYSTEM_PROMPT_CHAT",
     "INTENT_PROMPT",
     "INSUFFICIENT_EVIDENCE_MSG",
+    "SUMMARIZE_SESSION_PROMPT",
 ]

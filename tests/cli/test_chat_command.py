@@ -33,6 +33,7 @@ class TestChatCommandWelcome:
     def test_chat_prints_welcome_message(self) -> None:
         with patch("aurora.cli.chat.ChatSession") as mock_cls:
             mock_session = MagicMock()
+            mock_session.turn_count = 0
             mock_cls.return_value = mock_session
             with patch("builtins.input", side_effect=EOFError):
                 result = runner.invoke(app, ["chat"])
@@ -41,6 +42,7 @@ class TestChatCommandWelcome:
     def test_chat_prints_exit_instruction(self) -> None:
         with patch("aurora.cli.chat.ChatSession") as mock_cls:
             mock_session = MagicMock()
+            mock_session.turn_count = 0
             mock_cls.return_value = mock_session
             with patch("builtins.input", side_effect=EOFError):
                 result = runner.invoke(app, ["chat"])
@@ -53,6 +55,7 @@ class TestChatCommandInputRouting:
     def test_chat_passes_input_to_process_turn(self) -> None:
         with patch("aurora.cli.chat.ChatSession") as mock_cls:
             mock_session = MagicMock()
+            mock_session.turn_count = 0
             mock_cls.return_value = mock_session
             with patch("builtins.input", side_effect=["olá mundo", EOFError]):
                 result = runner.invoke(app, ["chat"])
@@ -61,6 +64,7 @@ class TestChatCommandInputRouting:
     def test_chat_skips_empty_input(self) -> None:
         with patch("aurora.cli.chat.ChatSession") as mock_cls:
             mock_session = MagicMock()
+            mock_session.turn_count = 0
             mock_cls.return_value = mock_session
             with patch("builtins.input", side_effect=["", "  ", EOFError]):
                 result = runner.invoke(app, ["chat"])
@@ -69,6 +73,7 @@ class TestChatCommandInputRouting:
     def test_chat_multiple_inputs_all_routed(self) -> None:
         with patch("aurora.cli.chat.ChatSession") as mock_cls:
             mock_session = MagicMock()
+            mock_session.turn_count = 0
             mock_cls.return_value = mock_session
             with patch("builtins.input", side_effect=["msg1", "msg2", EOFError]):
                 result = runner.invoke(app, ["chat"])
@@ -81,6 +86,7 @@ class TestChatCommandExit:
     def test_chat_exits_on_keyboard_interrupt(self) -> None:
         with patch("aurora.cli.chat.ChatSession") as mock_cls:
             mock_session = MagicMock()
+            mock_session.turn_count = 0
             mock_cls.return_value = mock_session
             with patch("builtins.input", side_effect=KeyboardInterrupt):
                 result = runner.invoke(app, ["chat"])
@@ -90,6 +96,7 @@ class TestChatCommandExit:
     def test_chat_exits_cleanly_on_sair(self) -> None:
         with patch("aurora.cli.chat.ChatSession") as mock_cls:
             mock_session = MagicMock()
+            mock_session.turn_count = 0
             mock_cls.return_value = mock_session
             with patch("builtins.input", side_effect=["sair"]):
                 result = runner.invoke(app, ["chat"])
@@ -101,6 +108,7 @@ class TestChatCommandExit:
     def test_chat_exits_cleanly_on_exit(self) -> None:
         with patch("aurora.cli.chat.ChatSession") as mock_cls:
             mock_session = MagicMock()
+            mock_session.turn_count = 0
             mock_cls.return_value = mock_session
             with patch("builtins.input", side_effect=["exit"]):
                 result = runner.invoke(app, ["chat"])
@@ -109,6 +117,7 @@ class TestChatCommandExit:
     def test_chat_exits_cleanly_on_quit(self) -> None:
         with patch("aurora.cli.chat.ChatSession") as mock_cls:
             mock_session = MagicMock()
+            mock_session.turn_count = 0
             mock_cls.return_value = mock_session
             with patch("builtins.input", side_effect=["quit"]):
                 result = runner.invoke(app, ["chat"])
@@ -117,6 +126,7 @@ class TestChatCommandExit:
     def test_chat_exits_on_eof(self) -> None:
         with patch("aurora.cli.chat.ChatSession") as mock_cls:
             mock_session = MagicMock()
+            mock_session.turn_count = 0
             mock_cls.return_value = mock_session
             with patch("builtins.input", side_effect=EOFError):
                 result = runner.invoke(app, ["chat"])

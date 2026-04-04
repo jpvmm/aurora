@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Callable
 
-from aurora.llm.prompts import INTENT_PROMPT, SYSTEM_PROMPT_GROUNDED
+from aurora.llm.prompts import INTENT_PROMPT, SUMMARIZE_SESSION_PROMPT, SYSTEM_PROMPT_GROUNDED
 from aurora.llm.streaming import chat_completion_sync, stream_chat_completions
 from aurora.runtime.settings import RuntimeSettings, load_settings
 
@@ -73,6 +73,24 @@ class LLMService:
             model_id=self._model_id,
             messages=messages,
             on_token=on_token,
+        )
+
+    def summarize_session(self, turns: list[dict[str, str]]) -> str:
+        """Generate a compact summary of conversation turns for episodic memory.
+
+        Uses sync (non-streaming) call — no user-facing output needed.
+        Returns raw LLM response text (topic line + summary body).
+        """
+        conversation = "\n".join(
+            f"{t['role']}: {t['content']}" for t in turns
+        )
+        messages = [
+            {"role": "user", "content": SUMMARIZE_SESSION_PROMPT.format(conversation=conversation)},
+        ]
+        return self._sync_fn(
+            endpoint_url=self._endpoint_url,
+            model_id=self._model_id,
+            messages=messages,
         )
 
     def classify_intent(self, message: str) -> str:
