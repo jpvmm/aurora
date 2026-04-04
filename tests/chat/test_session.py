@@ -283,3 +283,61 @@ class TestChatSessionInsufficientEvidence:
         )
         result = session.process_turn("pergunta sem evidencia")
         assert result == INSUFFICIENT_EVIDENCE_MSG
+
+
+class TestChatSessionMemoryBackend:
+    """Tests for ChatSession dual-retrieval when memory_backend is configured."""
+
+    def test_chat_session_accepts_memory_backend_param(self, tmp_path: Path) -> None:
+        """ChatSession.__init__ must accept optional memory_backend parameter."""
+        from unittest.mock import MagicMock
+        from aurora.chat.session import ChatSession
+        from aurora.chat.history import ChatHistory
+
+        history = ChatHistory(path=tmp_path / "history.jsonl")
+        mock_llm = MagicMock()
+        mock_llm.classify_intent.return_value = "chat"
+        mock_llm.chat_turn.return_value = "resp"
+        mock_memory_backend = MagicMock()
+
+        session = ChatSession(
+            history=history,
+            llm=mock_llm,
+            settings_loader=lambda: _mock_settings(),
+            on_token=lambda t: None,
+            memory_backend=mock_memory_backend,
+        )
+        # Should not raise; memory_backend should be passed to retrieval service
+        assert session is not None
+
+    def test_vault_turn_uses_retrieve_with_memory_when_memory_backend_configured(self, tmp_path: Path) -> None:
+        """_handle_vault_turn must call retrieve_with_memory when memory_backend is available."""
+        from aurora.retrieval.contracts import RetrievalResult, RetrievedNote
+        from aurora.chat.session import ChatSession
+        from aurora.chat.history import ChatHistory
+
+        history = ChatHistory(path=tmp_path / "history.jsonl")
+        mock_retrieval = MagicMock()
+        mock_llm = MagicMock()
+        mock_llm.classify_intent.return_value = "vault"
+        mock_llm.ask_grounded.return_value = "resposta"
+        mock_llm.chat_turn.return_value = "resposta"
+
+        vault_note = RetrievedNote(path="vault/note.md", score=0.9, content="conteudo", source="vault")
+        mock_retrieval.retrieve_with_memory.return_value = RetrievalResult(
+            ok=True,
+            notes=(vault_note,),
+            context_text="context",
+            insufficient_evidence=False,
+        )
+        mock_retrieval._memory_backend = MagicMock()  # Simulate memory backend present
+
+        session = ChatSession(
+            history=history,
+            retrieval=mock_retrieval,
+            llm=mock_llm,
+            settings_loader=lambda: _mock_settings(),
+            on_token=lambda t: None,
+        )
+        session.process_turn("o que e Python?")
+        mock_retrieval.retrieve_with_memory.assert_called_once_with("o que e Python?")
