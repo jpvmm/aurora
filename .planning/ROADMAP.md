@@ -20,7 +20,7 @@
 | 1. Local Runtime Baseline | 5/5 | Complete    | 2026-03-02 |
 | 2. Vault Knowledge Base Lifecycle | 6/6 | Complete   | 2026-03-04 |
 | 3. Grounded Retrieval Experience | 3/3 | In progress | - |
-| 4. Long-Term Memory Fusion | 0/1 | Not started | - |
+| 4. Long-Term Memory Fusion | 0/3 | Not started | - |
 | 5. Operational Command Surface | 0/1 | Not started | - |
 | 6. Runtime Profiles and Safe Observability | 0/1 | Not started | - |
 
@@ -114,7 +114,12 @@ Plans:
 2. Assistant retrieves relevant long-term memories when handling new questions.
 3. Assistant combines KB evidence and memory evidence in one response flow.
 4. User can clear session memory context without deleting the knowledge base.
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] `04-01-PLAN.md` — Build memory foundation: path helpers, extended contracts with source tracking, EpisodicMemoryStore, settings, PyYAML dependency.
+- [ ] `04-02-PLAN.md` — Create memory pipeline: LLM session summarization, MemorySummarizer, ChatSession turn tracking, background save on chat exit.
+- [ ] `04-03-PLAN.md` — Wire memory fusion: dual-collection retrieval, preferences injection, memory-aware prompts, and `aurora memory` CLI commands.
 
 ### Phase 5: Operational Command Surface
 **Goal**: User can operate Aurora end-to-end through explicit commands and built-in diagnostics.
@@ -169,4 +174,4 @@ Orphans: 0
 Duplicates: 0
 
 ---
-*Last updated: 2026-04-03 after planning phase 03*
+*Last updated: 2026-04-04 after planning phase 04*
