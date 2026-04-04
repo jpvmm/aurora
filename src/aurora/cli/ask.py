@@ -21,10 +21,18 @@ ask_app = typer.Typer(
 
 @ask_app.callback(invoke_without_command=True)
 def ask_command(
-    query: str = typer.Argument(..., help="Pergunta para buscar no vault."),
+    words: list[str] = typer.Argument(None, help="Pergunta para buscar no vault."),
     json_output: bool = typer.Option(False, "--json", help="Renderiza resposta em JSON."),
 ) -> None:
     """Busca evidencias no vault e gera uma resposta fundamentada."""
+    if not words:
+        typer.echo("Uso: aurora ask <pergunta>", err=True)
+        raise typer.Exit(code=1)
+    query = " ".join(words)
+
+    if not json_output:
+        typer.echo("Buscando no vault...", err=True)
+
     retrieval = RetrievalService()
     result = retrieval.retrieve(query)
 
@@ -33,6 +41,12 @@ def ask_command(
         len(result.notes),
         [(n.path, n.score) for n in result.notes],
     )
+
+    if not json_output and not result.insufficient_evidence:
+        typer.echo(
+            f"Encontrei {len(result.notes)} nota(s) relevante(s). Gerando resposta...",
+            err=True,
+        )
 
     if result.insufficient_evidence:
         if json_output:
@@ -55,7 +69,6 @@ def ask_command(
     llm = LLMService()
 
     if json_output:
-        # Collect tokens silently in JSON mode
         collected: list[str] = []
 
         def _collect_token(token: str) -> None:

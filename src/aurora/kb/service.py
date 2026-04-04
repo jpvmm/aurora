@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import time
 from contextlib import contextmanager
-from dataclasses import dataclass
+
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Iterator
@@ -36,14 +36,22 @@ ProgressCallback = Callable[[str, KBOperationCounters], None]
 NowProvider = Callable[[], datetime]
 
 
-@dataclass(frozen=True)
 class KBServiceError(Exception):
     """Typed KB lifecycle error consumed by CLI text/JSON renderers."""
 
-    category: str
-    message: str
-    diagnostics: tuple[KBFileDiagnostic, ...] = ()
-    recovery_commands: tuple[str, ...] = ()
+    def __init__(
+        self,
+        *,
+        category: str,
+        message: str,
+        diagnostics: tuple[KBFileDiagnostic, ...] = (),
+        recovery_commands: tuple[str, ...] = (),
+    ) -> None:
+        super().__init__(message)
+        self.category = category
+        self.message = message
+        self.diagnostics = diagnostics
+        self.recovery_commands = recovery_commands
 
     def __str__(self) -> str:
         return self.message

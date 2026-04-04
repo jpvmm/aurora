@@ -142,8 +142,8 @@ class QMDCliBackend:
         if result.returncode == 0:
             return None
 
-        stderr = (result.stderr or "").lower()
-        if "not found" in stderr or "does not exist" in stderr:
+        combined = f"{result.stderr or ''} {getattr(result, 'stdout', '') or ''}".lower()
+        if "not found" in combined or "does not exist" in combined:
             return None
 
         return self._response(
@@ -180,8 +180,8 @@ class QMDCliBackend:
         if result.returncode == 0:
             return None
 
-        stderr = (result.stderr or "").lower()
-        if "already exists" in stderr:
+        combined = f"{result.stderr or ''} {getattr(result, 'stdout', '') or ''}".lower()
+        if "already exists" in combined:
             return None
 
         return self._response(

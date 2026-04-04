@@ -9,7 +9,7 @@
 - [x] **Phase 1: Local Runtime Baseline** - Local-only runtime, global CLI entrypoint, and model connectivity guardrails.
 - [x] **Phase 2: Vault Knowledge Base Lifecycle** - Ingest, scope, and maintain Obsidian knowledge state via CLI. (completed 2026-03-04)
 - [ ] **Phase 3: Grounded Retrieval Experience** - Deliver trusted KB-grounded answers with citations and language policy.
-- [ ] **Phase 4: Long-Term Memory Fusion** - Persist and retrieve memory, then fuse it with KB evidence.
+- [x] **Phase 4: Long-Term Memory Fusion** - Persist and retrieve memory, then fuse it with KB evidence. (completed 2026-04-04)
 - [ ] **Phase 5: Operational Command Surface** - Provide explicit command set and health diagnostics for daily operation.
 - [ ] **Phase 6: Runtime Profiles and Safe Observability** - Support model profile switching with privacy-safe default logs.
 
@@ -20,7 +20,7 @@
 | 1. Local Runtime Baseline | 5/5 | Complete    | 2026-03-02 |
 | 2. Vault Knowledge Base Lifecycle | 6/6 | Complete   | 2026-03-04 |
 | 3. Grounded Retrieval Experience | 3/3 | In progress | - |
-| 4. Long-Term Memory Fusion | 2/3 | In Progress|  |
+| 4. Long-Term Memory Fusion | 3/3 | Complete   | 2026-04-04 |
 | 5. Operational Command Surface | 0/1 | Not started | - |
 | 6. Runtime Profiles and Safe Observability | 0/1 | Not started | - |
 

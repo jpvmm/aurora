@@ -47,7 +47,10 @@ def chat_command(
         typer.echo("Historico de conversa limpo.")
         return
 
-    session = ChatSession()
+    def _status(msg: str) -> None:
+        typer.echo(msg, err=True)
+
+    session = ChatSession(on_status=_status)
     typer.echo("Aurora Chat — digite 'sair' para encerrar.")
     typer.echo("")
 

@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Ready to execute
-last_updated: "2026-04-04T22:37:45.601Z"
+status: Phase complete — ready for verification
+last_updated: "2026-04-04T22:46:50.223Z"
 progress:
   total_phases: 8
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 25
-  completed_plans: 24
+  completed_plans: 25
 ---
 
 # STATE: Aurora
@@ -113,6 +113,9 @@ Plan: 3 of 3
 - [Phase 04-long-term-memory-fusion]: Daemon thread for background save ensures user exits immediately without waiting for LLM summarization (per D-12)
 - [Phase 04-long-term-memory-fusion]: session_start_index snapshots history length at ChatSession init to isolate current-session turns from prior sessions (per Pitfall 8)
 - [Phase 04-long-term-memory-fusion]: min-2-turn gate enforced in MemorySummarizer.summarize_and_save, not in CLI, keeping logic in the domain layer (per D-11)
+- [Phase 04-long-term-memory-fusion]: Vault turns now use chat_turn with manually assembled messages for full prompt control, replacing ask_grounded which hardcoded the system prompt.
+- [Phase 04-long-term-memory-fusion]: memory_backend=None in RetrievalService: retrieve_with_memory() falls back to KB-only results when no memory backend is configured.
+- [Phase 04-long-term-memory-fusion]: Memory clear removes QMD collection via _remove_qmd_collection helper that silently ignores FileNotFoundError (qmd may not be installed).
 
 ### TODOs
 
