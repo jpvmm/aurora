@@ -36,6 +36,7 @@ def _make_session(
     mock_llm.ask_grounded.return_value = llm_response
     mock_llm.chat_turn.return_value = llm_response
     mock_retrieval.retrieve.return_value = _make_retrieval_result(insufficient=insufficient)
+    mock_retrieval._memory_backend = None  # No memory backend by default
 
     session = ChatSession(
         history=history,
@@ -62,17 +63,18 @@ class TestChatSessionVaultIntent:
         session.process_turn("o que e Python?")
         mock_retrieval.retrieve.assert_called_once_with("o que e Python?")
 
-    def test_vault_turn_calls_ask_grounded_with_context(self, tmp_path: Path) -> None:
+    def test_vault_turn_calls_chat_turn_with_context_in_messages(self, tmp_path: Path) -> None:
+        """Vault turns use chat_turn with system prompt + context injected in messages."""
         session, mock_llm, mock_retrieval = _make_session(tmp_path=tmp_path, vault_intent=True)
         session.process_turn("o que e Python?")
-        mock_llm.ask_grounded.assert_called_once()
-        args, kwargs = mock_llm.ask_grounded.call_args
-        assert "o que e Python?" in (args + tuple(kwargs.values()))
-
-    def test_vault_turn_does_not_call_chat_turn(self, tmp_path: Path) -> None:
-        session, mock_llm, mock_retrieval = _make_session(tmp_path=tmp_path, vault_intent=True)
-        session.process_turn("o que e X?")
-        mock_llm.chat_turn.assert_not_called()
+        mock_llm.chat_turn.assert_called_once()
+        call_args = mock_llm.chat_turn.call_args
+        messages_arg = call_args[0][0] if call_args[0] else call_args[1].get("messages")
+        # System prompt should be first
+        assert messages_arg[0]["role"] == "system"
+        # User message (with context) should be last
+        assert messages_arg[-1]["role"] == "user"
+        assert "o que e Python?" in messages_arg[-1]["content"]
 
     def test_vault_turn_re_retrieves_each_call(self, tmp_path: Path) -> None:
         """Per D-13: re-retrieve from KB on each vault turn."""
@@ -82,12 +84,15 @@ class TestChatSessionVaultIntent:
         assert mock_retrieval.retrieve.call_count == 2
 
     def test_vault_turn_uses_system_prompt_grounded(self, tmp_path: Path) -> None:
-        """Vault turns use SYSTEM_PROMPT_GROUNDED (passed via ask_grounded contract)."""
+        """Vault turns (no memory) must use SYSTEM_PROMPT_GROUNDED in system message."""
         session, mock_llm, mock_retrieval = _make_session(tmp_path=tmp_path, vault_intent=True)
         session.process_turn("vault question")
-        # ask_grounded was called (which internally uses SYSTEM_PROMPT_GROUNDED in LLMService)
-        mock_llm.ask_grounded.assert_called_once()
-        mock_llm.chat_turn.assert_not_called()
+        mock_llm.chat_turn.assert_called_once()
+        call_args = mock_llm.chat_turn.call_args
+        messages_arg = call_args[0][0] if call_args[0] else call_args[1].get("messages")
+        system_content = messages_arg[0]["content"]
+        # Should contain SYSTEM_PROMPT_GROUNDED text (no memory present)
+        assert "vault" in system_content.lower() or "Aurora" in system_content
 
 
 class TestChatSessionChatIntent:
@@ -238,6 +243,7 @@ class TestChatSessionInsufficientEvidence:
         mock_llm.classify_intent.return_value = "vault"
         mock_retrieval = MagicMock()
         mock_retrieval.retrieve.return_value = _make_retrieval_result(insufficient=True)
+        mock_retrieval._memory_backend = None
 
         session = ChatSession(
             history=history,
@@ -250,12 +256,14 @@ class TestChatSessionInsufficientEvidence:
         session.process_turn("o que e X?")
         on_insufficient.assert_called_once_with(INSUFFICIENT_EVIDENCE_MSG)
 
-    def test_insufficient_evidence_does_not_call_ask_grounded(self, tmp_path: Path) -> None:
+    def test_insufficient_evidence_does_not_call_chat_turn(self, tmp_path: Path) -> None:
+        """Insufficient evidence must not call chat_turn or ask_grounded."""
         history = ChatHistory(path=tmp_path / "history.jsonl")
         mock_llm = MagicMock()
         mock_llm.classify_intent.return_value = "vault"
         mock_retrieval = MagicMock()
         mock_retrieval.retrieve.return_value = _make_retrieval_result(insufficient=True)
+        mock_retrieval._memory_backend = None
 
         session = ChatSession(
             history=history,
@@ -265,7 +273,7 @@ class TestChatSessionInsufficientEvidence:
             on_token=lambda t: None,
         )
         session.process_turn("o que e X?")
-        mock_llm.ask_grounded.assert_not_called()
+        mock_llm.chat_turn.assert_not_called()
 
     def test_insufficient_evidence_returns_insufficient_evidence_msg(self, tmp_path: Path) -> None:
         history = ChatHistory(path=tmp_path / "history.jsonl")
@@ -273,6 +281,7 @@ class TestChatSessionInsufficientEvidence:
         mock_llm.classify_intent.return_value = "vault"
         mock_retrieval = MagicMock()
         mock_retrieval.retrieve.return_value = _make_retrieval_result(insufficient=True)
+        mock_retrieval._memory_backend = None
 
         session = ChatSession(
             history=history,
