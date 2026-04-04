@@ -20,7 +20,7 @@
 | 1. Local Runtime Baseline | 5/5 | Complete    | 2026-03-02 |
 | 2. Vault Knowledge Base Lifecycle | 6/6 | Complete   | 2026-03-04 |
 | 3. Grounded Retrieval Experience | 3/3 | In progress | - |
-| 4. Long-Term Memory Fusion | 1/3 | In Progress|  |
+| 4. Long-Term Memory Fusion | 2/3 | In Progress|  |
 | 5. Operational Command Surface | 0/1 | Not started | - |
 | 6. Runtime Profiles and Safe Observability | 0/1 | Not started | - |
 

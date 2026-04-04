@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Ready to execute
-last_updated: "2026-04-04T22:30:34.597Z"
+last_updated: "2026-04-04T22:37:45.601Z"
 progress:
   total_phases: 8
   completed_phases: 5
   total_plans: 25
-  completed_plans: 23
+  completed_plans: 24
 ---
 
 # STATE: Aurora
@@ -22,7 +22,7 @@ progress:
 ## Current Position
 
 Phase: 04 (long-term-memory-fusion) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 
 - **Current phase**: 03 - Grounded Retrieval Experience
 - **Current plan**: Plan 02 complete; next is Plan 03 (aurora chat interactive command).
@@ -110,6 +110,9 @@ Plan: 2 of 3
 - [Phase 04-long-term-memory-fusion]: EpisodicMemoryStore accepts memory_dir injection for testability; defaults to get_memory_dir() for production
 - [Phase 04-long-term-memory-fusion]: source field defaults to 'vault' on RetrievedNote for full backward compatibility with existing retrieval code
 - [Phase 04-long-term-memory-fusion]: memory_top_k range 3-10 mirrors retrieval_top_k pattern with pt-BR validation error messages
+- [Phase 04-long-term-memory-fusion]: Daemon thread for background save ensures user exits immediately without waiting for LLM summarization (per D-12)
+- [Phase 04-long-term-memory-fusion]: session_start_index snapshots history length at ChatSession init to isolate current-session turns from prior sessions (per Pitfall 8)
+- [Phase 04-long-term-memory-fusion]: min-2-turn gate enforced in MemorySummarizer.summarize_and_save, not in CLI, keeping logic in the domain layer (per D-11)
 
 ### TODOs
 
