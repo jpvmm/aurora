@@ -7,6 +7,7 @@ from aurora.cli.chat import chat_app
 from aurora.cli.config import config_app
 from aurora.cli.doctor import doctor_app
 from aurora.cli.kb import kb_app
+from aurora.cli.memory import memory_app
 from aurora.cli.model import model_app
 from aurora.cli.setup import run_first_run_wizard, setup_app, should_run_first_run_wizard
 
@@ -36,3 +37,4 @@ app.add_typer(doctor_app, name="doctor")
 app.add_typer(kb_app, name="kb")
 app.add_typer(ask_app, name="ask")
 app.add_typer(chat_app, name="chat")
+app.add_typer(memory_app, name="memory")

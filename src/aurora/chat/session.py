@@ -149,7 +149,6 @@ class ChatSession:
         system_prompt = build_system_prompt_with_preferences(base_prompt, self._preferences_path)
 
         self._on_status(f"Encontrei {len(result.notes)} nota(s). Gerando resposta...")
-
         # Build messages manually so we control the system prompt
         context_msg = f"Contexto do vault:\n\n{result.context_text}\n\nPergunta: {user_message}"
         messages = [
