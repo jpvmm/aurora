@@ -217,6 +217,7 @@ class TestMemorySummarizerParseResponse:
         topic, _ = self._parse("  Topico com espacos  \nCorpo")
         assert topic == "Topico com espacos"
 
-    def test_parse_response_empty_first_line_returns_default_topic(self) -> None:
+    def test_parse_response_empty_first_line_uses_second_line_as_topic(self) -> None:
+        """When raw starts with newline, strip() removes it, so first non-empty line becomes topic."""
         topic, _ = self._parse("\nCorpo sem topico")
-        assert topic == "sessao sem titulo"
+        assert topic == "Corpo sem topico"
