@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Ready to plan
-last_updated: "2026-04-03T23:38:29.043Z"
+status: Ready to execute
+last_updated: "2026-04-04T22:30:34.597Z"
 progress:
   total_phases: 8
   completed_phases: 5
-  total_plans: 22
-  completed_plans: 22
+  total_plans: 25
+  completed_plans: 23
 ---
 
 # STATE: Aurora
@@ -20,6 +20,9 @@ progress:
 - **Depth mode**: comprehensive
 
 ## Current Position
+
+Phase: 04 (long-term-memory-fusion) — EXECUTING
+Plan: 2 of 3
 
 - **Current phase**: 03 - Grounded Retrieval Experience
 - **Current plan**: Plan 02 complete; next is Plan 03 (aurora chat interactive command).
@@ -104,6 +107,9 @@ progress:
 - [Phase 03-grounded-retrieval-experience]: ask_app callback pattern: aurora ask 'query' works as single-command sub-typer, no intent routing (D-15)
 - [Phase 03]: ChatHistory.get_recent strips ts field returning only role+content for direct LLM messages array use
 - [Phase 03]: ChatSession persists history only after assistant response computed to avoid orphaned user records on LLM failure
+- [Phase 04-long-term-memory-fusion]: EpisodicMemoryStore accepts memory_dir injection for testability; defaults to get_memory_dir() for production
+- [Phase 04-long-term-memory-fusion]: source field defaults to 'vault' on RetrievedNote for full backward compatibility with existing retrieval code
+- [Phase 04-long-term-memory-fusion]: memory_top_k range 3-10 mirrors retrieval_top_k pattern with pt-BR validation error messages
 
 ### TODOs
 

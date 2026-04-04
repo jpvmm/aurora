@@ -24,10 +24,10 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Memory
 
-- [ ] **MEM-01**: User interactions are persisted as long-term memory across CLI sessions.
+- [x] **MEM-01**: User interactions are persisted as long-term memory across CLI sessions.
 - [ ] **MEM-02**: Assistant retrieves relevant long-term memories during new questions.
 - [ ] **MEM-03**: Assistant combines knowledge base evidence and memory evidence in a single response flow.
-- [ ] **MEM-04**: User can clear session memory context without deleting the entire knowledge base.
+- [x] **MEM-04**: User can clear session memory context without deleting the entire knowledge base.
 
 ### Assistant CLI
 
@@ -95,10 +95,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | RET-02 | Phase 3 | Complete |
 | RET-03 | Phase 3 | Complete |
 | RET-04 | Phase 3 | Complete |
-| MEM-01 | Phase 4 | Pending |
+| MEM-01 | Phase 4 | Complete |
 | MEM-02 | Phase 4 | Pending |
 | MEM-03 | Phase 4 | Pending |
-| MEM-04 | Phase 4 | Pending |
+| MEM-04 | Phase 4 | Complete |
 | CLI-01 | Phase 1 | Complete |
 | CLI-02 | Phase 5 | Complete |
 | CLI-03 | Phase 3 | Complete |
