@@ -40,6 +40,8 @@ class RuntimeSettings(BaseSettings):
     retrieval_top_k: int = 7
     retrieval_min_score: float = 0.30
     chat_history_max_turns: int = 10
+    memory_top_k: int = 5
+    memory_min_score: float = 0.25
 
     model_config = SettingsConfigDict(extra="ignore")
 
@@ -78,6 +80,13 @@ class RuntimeSettings(BaseSettings):
     def _validate_retrieval_top_k(cls, value: int) -> int:
         if value < 5 or value > 10:
             raise ValueError("retrieval_top_k deve estar entre 5 e 10.")
+        return value
+
+    @field_validator("memory_top_k")
+    @classmethod
+    def _validate_memory_top_k(cls, value: int) -> int:
+        if value < 3 or value > 10:
+            raise ValueError("memory_top_k deve estar entre 3 e 10.")
         return value
 
 

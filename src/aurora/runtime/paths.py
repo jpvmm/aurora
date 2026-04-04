@@ -15,6 +15,8 @@ KB_LOCK_FILENAME = "kb.lock"
 KB_MANIFEST_FILENAME = "kb-manifest.json"
 KB_STATE_FILENAME = "kb-state.json"
 KB_QMD_CORPUS_DIRNAME = "kb-qmd-corpus"
+MEMORY_DIRNAME = "memory"
+PREFERENCES_FILENAME = "preferences.md"
 CONFIG_DIR_ENV = "AURORA_CONFIG_DIR"
 
 
@@ -66,6 +68,16 @@ def get_kb_qmd_corpus_path(collection_name: str = "aurora-kb-managed") -> Path:
     """Return deterministic corpus path scoped by managed QMD collection name."""
     safe_collection = _normalize_collection_name(collection_name)
     return get_kb_qmd_corpus_root_path() / safe_collection
+
+
+def get_memory_dir() -> Path:
+    """Return the directory for Aurora-managed episodic memory files."""
+    return get_config_dir() / MEMORY_DIRNAME
+
+
+def get_preferences_path() -> Path:
+    """Return the path for the Tier 1 preferences markdown file."""
+    return get_config_dir() / PREFERENCES_FILENAME
 
 
 def ensure_config_dir() -> Path:

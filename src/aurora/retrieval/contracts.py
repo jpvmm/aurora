@@ -38,6 +38,7 @@ class RetrievedNote:
     path: str
     score: float
     content: str
+    source: str = "vault"
 
 
 @dataclass(frozen=True)
