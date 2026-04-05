@@ -1,6 +1,7 @@
 """MemorySummarizer — orchestrates LLM session summarization and episodic file storage."""
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
 
 from aurora.llm.service import LLMService
@@ -27,6 +28,10 @@ class MemorySummarizer:
 
         raw = self._llm.summarize_session(history_turns)
         topic, summary = self._parse_response(raw)
+        # Safety net: ensure "Data da sessao:" is always present in the body,
+        # even if the LLM omitted it despite being instructed to include it.
+        if "Data da sessao:" not in summary:
+            summary = f"Data da sessao: {date.today().isoformat()}\n\n{summary}"
         return self._store.write(topic=topic, turn_count=turn_count, summary=summary)
 
     @staticmethod
