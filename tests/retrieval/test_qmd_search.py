@@ -204,3 +204,101 @@ def test_fetch_returns_none_when_qmd_not_found():
     result = _backend(_runner).fetch("notes/alpha.md")
 
     assert result is None
+
+
+# ---------------------------------------------------------------------------
+# keyword_search() tests
+# ---------------------------------------------------------------------------
+
+
+def test_keyword_search_calls_qmd_search_not_query():
+    """keyword_search() must use 'search' subcommand, not 'query', with min_score=0.10 default."""
+    runner = MagicMock(return_value=_make_result(stdout="[]"))
+
+    backend = _backend(runner)
+    backend.keyword_search("Rosely")
+
+    runner.assert_called_once_with(
+        (
+            "qmd",
+            "--index",
+            "aurora-kb",
+            "search",
+            "--json",
+            "-n",
+            "7",
+            "-c",
+            "aurora-kb-managed",
+            "--min-score",
+            "0.10",
+            "Rosely",
+        )
+    )
+
+
+def test_keyword_search_parses_hits_into_dataclasses():
+    """keyword_search() must parse JSON hits identically to search()."""
+    hits_json = json.dumps(
+        [
+            {
+                "file": "notes/alpha.md",
+                "score": 0.85,
+                "title": "Alpha Note",
+                "snippet": "First snippet",
+            },
+            {
+                "file": "notes/beta.md",
+                "score": 0.72,
+                "title": "Beta Note",
+                "snippet": "Second snippet",
+            },
+        ]
+    )
+    runner = MagicMock(return_value=_make_result(stdout=hits_json))
+
+    response = _backend(runner).keyword_search("query")
+
+    assert response.ok is True
+    assert len(response.hits) == 2
+    assert response.hits[0] == QMDSearchHit(
+        path="notes/alpha.md", score=0.85, title="Alpha Note", snippet="First snippet"
+    )
+    assert response.hits[1] == QMDSearchHit(
+        path="notes/beta.md", score=0.72, title="Beta Note", snippet="Second snippet"
+    )
+
+
+def test_keyword_search_returns_error_when_qmd_not_found():
+    """keyword_search() must return backend_unavailable diagnostic on FileNotFoundError."""
+
+    def _runner(_argv):
+        raise FileNotFoundError("qmd not found")
+
+    response = _backend(_runner).keyword_search("Rosely")
+
+    assert response.ok is False
+    assert len(response.diagnostics) == 1
+    diag = response.diagnostics[0]
+    assert diag.category == "backend_unavailable"
+    assert "qmd" in diag.recovery_hint.lower()
+
+
+def test_keyword_search_returns_error_on_non_zero_exit():
+    """keyword_search() must return ok=False on non-zero exit code."""
+    runner = MagicMock(return_value=_make_result(returncode=1, stderr="some error"))
+
+    response = _backend(runner).keyword_search("Rosely")
+
+    assert response.ok is False
+    assert len(response.diagnostics) >= 1
+
+
+def test_keyword_search_accepts_custom_min_score():
+    """keyword_search() must pass custom min_score as formatted string."""
+    runner = MagicMock(return_value=_make_result(stdout="[]"))
+
+    _backend(runner).keyword_search("Rosely", min_score=0.20)
+
+    call_args = runner.call_args[0][0]
+    min_score_idx = list(call_args).index("--min-score")
+    assert call_args[min_score_idx + 1] == "0.20"

@@ -185,16 +185,16 @@ def test_runtime_settings_accepts_chat_history_max_turns():
     assert s.chat_history_max_turns == 5
 
 
-def test_runtime_settings_retrieval_top_k_defaults_to_7():
-    """RuntimeSettings.retrieval_top_k must default to 7."""
+def test_runtime_settings_retrieval_top_k_defaults_to_15():
+    """RuntimeSettings.retrieval_top_k must default to 15."""
     from aurora.runtime.settings import RuntimeSettings
 
     s = RuntimeSettings()
-    assert s.retrieval_top_k == 7
+    assert s.retrieval_top_k == 15
 
 
-def test_runtime_settings_retrieval_top_k_must_be_between_5_and_10():
-    """RuntimeSettings must reject retrieval_top_k outside 5-10 range."""
+def test_runtime_settings_retrieval_top_k_must_be_between_5_and_30():
+    """RuntimeSettings must reject retrieval_top_k outside 5-30 range."""
     from pydantic import ValidationError
 
     from aurora.runtime.settings import RuntimeSettings
@@ -203,7 +203,17 @@ def test_runtime_settings_retrieval_top_k_must_be_between_5_and_10():
         RuntimeSettings(retrieval_top_k=4)
 
     with pytest.raises(ValidationError):
-        RuntimeSettings(retrieval_top_k=11)
+        RuntimeSettings(retrieval_top_k=31)
+
+    # Boundary values that must succeed
+    s_lower = RuntimeSettings(retrieval_top_k=5)
+    assert s_lower.retrieval_top_k == 5
+
+    s_upper = RuntimeSettings(retrieval_top_k=30)
+    assert s_upper.retrieval_top_k == 30
+
+    s_default = RuntimeSettings(retrieval_top_k=15)
+    assert s_default.retrieval_top_k == 15
 
 
 # ---------------------------------------------------------------------------
