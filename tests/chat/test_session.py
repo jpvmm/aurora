@@ -350,3 +350,102 @@ class TestChatSessionMemoryBackend:
         )
         session.process_turn("o que e Python?")
         mock_retrieval.retrieve_with_memory.assert_called_once_with("o que e Python?")
+
+
+class TestChatSessionMemoryIntent:
+    """Tests for memory-intent routing in ChatSession (three-way routing)."""
+
+    def _make_memory_session(
+        self,
+        tmp_path: "Path",
+        *,
+        insufficient: bool = False,
+        llm_response: str = "resposta memoria",
+    ) -> "tuple[ChatSession, MagicMock, MagicMock]":
+        """Create ChatSession with mocked LLM returning 'memory' intent."""
+        from aurora.chat.history import ChatHistory
+        from aurora.retrieval.contracts import RetrievalResult, RetrievedNote
+
+        history = ChatHistory(path=tmp_path / "history.jsonl")
+        mock_retrieval = MagicMock()
+        mock_llm = MagicMock()
+
+        mock_llm.classify_intent.return_value = "memory"
+        mock_llm.chat_turn.return_value = llm_response
+
+        if insufficient:
+            mem_result = RetrievalResult(ok=True, notes=(), context_text="", insufficient_evidence=True)
+        else:
+            mem_note = RetrievedNote(path="memory/2024-01.md", score=0.9, content="conteudo memoria", source="memory")
+            mem_result = RetrievalResult(ok=True, notes=(mem_note,), context_text="context", insufficient_evidence=False)
+
+        mock_retrieval.retrieve_memory_first.return_value = mem_result
+        mock_retrieval._memory_backend = MagicMock()
+
+        session = ChatSession(
+            history=history,
+            retrieval=mock_retrieval,
+            llm=mock_llm,
+            settings_loader=lambda: _mock_settings(),
+            on_token=lambda t: None,
+            on_insufficient=lambda msg: None,
+        )
+        return session, mock_llm, mock_retrieval
+
+    def test_memory_intent_calls_retrieve_memory_first(self, tmp_path: Path) -> None:
+        """'memory' intent must route to retrieve_memory_first, not retrieve/retrieve_with_memory."""
+        session, mock_llm, mock_retrieval = self._make_memory_session(tmp_path)
+        session.process_turn("o que conversamos ontem?")
+        mock_retrieval.retrieve_memory_first.assert_called_once_with("o que conversamos ontem?")
+
+    def test_memory_intent_does_not_call_retrieve_or_retrieve_with_memory(self, tmp_path: Path) -> None:
+        """'memory' intent must NOT call retrieve() or retrieve_with_memory()."""
+        session, mock_llm, mock_retrieval = self._make_memory_session(tmp_path)
+        session.process_turn("o que conversamos ontem?")
+        mock_retrieval.retrieve.assert_not_called()
+        mock_retrieval.retrieve_with_memory.assert_not_called()
+
+    def test_memory_intent_uses_memory_first_system_prompt(self, tmp_path: Path) -> None:
+        """'memory' intent must use get_system_prompt_memory_first (Priorize as memorias or conversas anteriores)."""
+        session, mock_llm, mock_retrieval = self._make_memory_session(tmp_path)
+        session.process_turn("o que conversamos ontem?")
+
+        mock_llm.chat_turn.assert_called_once()
+        call_args = mock_llm.chat_turn.call_args
+        messages_arg = call_args[0][0] if call_args[0] else call_args[1].get("messages")
+        system_content = messages_arg[0]["content"]
+        # Memory-first prompt must contain memory-relevant text
+        assert "memorias" in system_content.lower() or "conversas anteriores" in system_content.lower()
+
+    def test_vault_intent_not_affected_by_memory_routing(self, tmp_path: Path) -> None:
+        """Adding memory routing must not break vault intent routing."""
+        history = ChatHistory(path=tmp_path / "history.jsonl")
+        mock_retrieval = MagicMock()
+        mock_llm = MagicMock()
+        mock_llm.classify_intent.return_value = "vault"
+        mock_llm.chat_turn.return_value = "vault response"
+
+        vault_note = RetrievedNote(path="vault/note.md", score=0.9, content="content", source="vault")
+        mock_retrieval.retrieve.return_value = RetrievalResult(
+            ok=True, notes=(vault_note,), context_text="context", insufficient_evidence=False
+        )
+        mock_retrieval._memory_backend = None
+
+        session = ChatSession(
+            history=history,
+            retrieval=mock_retrieval,
+            llm=mock_llm,
+            settings_loader=lambda: _mock_settings(),
+            on_token=lambda t: None,
+        )
+        session.process_turn("o que escrevi sobre Python?")
+        mock_retrieval.retrieve.assert_called_once()
+        mock_retrieval.retrieve_memory_first.assert_not_called()
+
+    def test_chat_intent_not_affected_by_memory_routing(self, tmp_path: Path) -> None:
+        """Adding memory routing must not break chat intent routing."""
+        session, mock_llm, mock_retrieval = _make_session(tmp_path=tmp_path, vault_intent=False)
+        session.process_turn("ola")
+        mock_retrieval.retrieve.assert_not_called()
+        mock_retrieval.retrieve_memory_first.assert_not_called()
+        mock_llm.chat_turn.assert_called_once()

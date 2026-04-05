@@ -390,6 +390,104 @@ class TestMemoryBackendFailure:
 
 
 # ---------------------------------------------------------------------------
+# retrieve_memory_first() — memory-first dual-source retrieval
+# ---------------------------------------------------------------------------
+
+
+class TestRetrieveMemoryFirst:
+    """Tests for memory-first retrieval combining episodic memory and vault KB."""
+
+    def test_retrieve_memory_first_calls_both_backends(self):
+        """retrieve_memory_first() must call search on both KB and memory backends."""
+        kb_hits = [_hit("vault/note.md", score=0.90)]
+        mem_hits = [_hit("memory/2024-01.md", score=0.80)]
+
+        kb_backend = _mock_backend(
+            _response(kb_hits),
+            fetch_content={"vault/note.md": "vault content"},
+        )
+        mem_backend = _mock_backend(
+            _response(mem_hits),
+            fetch_content={"memory/2024-01.md": "memory content"},
+        )
+
+        service = RetrievalService(search_backend=kb_backend, memory_backend=mem_backend)
+        result = service.retrieve_memory_first("test query")
+
+        kb_backend.search.assert_called_once_with("test query")
+        mem_backend.search.assert_called_once_with("test query")
+        assert result.ok is True
+        assert result.insufficient_evidence is False
+
+    def test_retrieve_memory_first_memory_notes_before_vault_notes(self):
+        """Memory hits must appear before vault hits in merged notes (D-04)."""
+        kb_hits = [_hit("vault/note.md", score=0.90)]
+        mem_hits = [_hit("memory/2024-01.md", score=0.70)]  # lower score but memory-first
+
+        kb_backend = _mock_backend(
+            _response(kb_hits),
+            fetch_content={"vault/note.md": "vault content"},
+        )
+        mem_backend = _mock_backend(
+            _response(mem_hits),
+            fetch_content={"memory/2024-01.md": "memory content"},
+        )
+
+        service = RetrievalService(search_backend=kb_backend, memory_backend=mem_backend)
+        result = service.retrieve_memory_first("query")
+
+        # Memory note must come first regardless of score
+        assert result.notes[0].source == "memory"
+        assert result.notes[1].source == "vault"
+
+    def test_retrieve_memory_first_returns_insufficient_when_both_empty(self):
+        """retrieve_memory_first() must return _INSUFFICIENT when both backends have no hits."""
+        kb_backend = _mock_backend(_response([]))
+        mem_backend = _mock_backend(_response([]))
+
+        service = RetrievalService(search_backend=kb_backend, memory_backend=mem_backend)
+        result = service.retrieve_memory_first("obscure query")
+
+        assert result.insufficient_evidence is True
+        assert result.notes == ()
+
+    def test_retrieve_memory_first_with_no_memory_backend_returns_vault_only(self):
+        """retrieve_memory_first() without memory_backend falls back to vault-only results."""
+        kb_hits = [_hit("vault/note.md", score=0.90)]
+        kb_backend = _mock_backend(
+            _response(kb_hits),
+            fetch_content={"vault/note.md": "vault content"},
+        )
+
+        service = RetrievalService(search_backend=kb_backend)  # no memory_backend
+        result = service.retrieve_memory_first("query")
+
+        assert result.ok is True
+        assert len(result.notes) == 1
+        assert result.notes[0].source == "vault"
+
+    def test_retrieve_memory_first_respects_max_context_chars(self):
+        """Combined context from memory + vault must not exceed MAX_CONTEXT_CHARS."""
+        large_content = "x" * (MAX_CONTEXT_CHARS // 2 + 2000)
+        kb_hits = [_hit("vault/big.md", score=0.90)]
+        mem_hits = [_hit("memory/big.md", score=0.85)]
+
+        kb_backend = _mock_backend(
+            _response(kb_hits),
+            fetch_content={"vault/big.md": large_content},
+        )
+        mem_backend = _mock_backend(
+            _response(mem_hits),
+            fetch_content={"memory/big.md": large_content},
+        )
+
+        service = RetrievalService(search_backend=kb_backend, memory_backend=mem_backend)
+        result = service.retrieve_memory_first("query")
+
+        assert len(result.context_text) <= MAX_CONTEXT_CHARS
+
+
+# ---------------------------------------------------------------------------
 # Prompts — SYSTEM_PROMPT_GROUNDED_WITH_MEMORY and preferences injection
 # ---------------------------------------------------------------------------
 
