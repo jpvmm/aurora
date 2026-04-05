@@ -14,6 +14,7 @@ from aurora.llm.prompts import (
     get_system_prompt_memory_first,
 )
 from aurora.llm.service import LLMService
+from aurora.retrieval.contracts import RetrievalResult, RetrievedNote
 from aurora.retrieval.qmd_search import QMDSearchBackend
 from aurora.retrieval.service import RetrievalService
 from aurora.runtime.paths import get_preferences_path
@@ -61,6 +62,8 @@ class ChatSession:
         # Snapshot history length at session start to isolate current session turns (per Pitfall 8)
         self._session_start_index: int = len(self._history.load())
         self._preferences_path = get_preferences_path()
+        # Carry-forward state: paths from the previous vault/memory turn (per D-08, D-09, D-10)
+        self._last_retrieved_paths: list[str] = []
 
     @property
     def turn_count(self) -> int:
@@ -93,6 +96,47 @@ class ChatSession:
             {"role": t["role"], "content": t["content"]}
             for t in all_turns[self._session_start_index:]
         ]
+
+    def _apply_carry_forward(self, result: RetrievalResult) -> RetrievalResult:
+        """Supplement fresh retrieval results with notes from the previous turn (per D-09).
+
+        If _last_retrieved_paths is empty or result.insufficient_evidence is True,
+        returns result unchanged.
+
+        For each carry-forward path not already in fresh results, fetches content
+        via self._retrieval._backend.fetch and appends as a supplementary note.
+        Carry-forward supplements are capped at 3 notes.
+        """
+        if not self._last_retrieved_paths:
+            return result
+        if result.insufficient_evidence:
+            return result
+
+        fresh_paths = {n.path for n in result.notes}
+        missing_paths = [p for p in self._last_retrieved_paths if p not in fresh_paths][:3]
+
+        if not missing_paths:
+            return result
+
+        supplements: list[RetrievedNote] = []
+        for path in missing_paths:
+            content = self._retrieval._backend.fetch(path)
+            if content is None:
+                logger.debug("_apply_carry_forward: skipping %s (fetch returned None)", path)
+                continue
+            supplements.append(RetrievedNote(path=path, score=0.0, content=content, source="vault"))
+
+        if not supplements:
+            return result
+
+        all_notes = list(result.notes) + supplements
+        context_text = self._retrieval._assemble_context(all_notes)
+        return RetrievalResult(
+            ok=True,
+            notes=tuple(all_notes),
+            context_text=context_text,
+            insufficient_evidence=False,
+        )
 
     def process_turn(self, user_message: str) -> str:
         """Process a single user turn through intent classification and routing.
@@ -138,6 +182,12 @@ class ChatSession:
             [(n.path, n.score) for n in result.notes],
         )
 
+        # Apply carry-forward supplements from previous turn (per D-09), before insufficient check
+        result = self._apply_carry_forward(result)
+
+        # Update carry-forward state (per D-08, D-10): cap at 3, even if insufficient (empty notes)
+        self._last_retrieved_paths = [n.path for n in result.notes][:3]
+
         if result.insufficient_evidence:
             self._on_insufficient(INSUFFICIENT_EVIDENCE_MSG)
             return INSUFFICIENT_EVIDENCE_MSG
@@ -175,6 +225,12 @@ class ChatSession:
             [(n.path, n.score) for n in result.notes],
         )
 
+        # Apply carry-forward supplements from previous turn (per D-09), before insufficient check
+        result = self._apply_carry_forward(result)
+
+        # Update carry-forward state (per D-08, D-10): cap at 3, even if insufficient (empty notes)
+        self._last_retrieved_paths = [n.path for n in result.notes][:3]
+
         if result.insufficient_evidence:
             self._on_insufficient(INSUFFICIENT_EVIDENCE_MSG)
             return INSUFFICIENT_EVIDENCE_MSG
@@ -203,6 +259,10 @@ class ChatSession:
 
         response = self._llm.chat_turn(messages, on_token=self._on_token)
         print()  # final newline after streaming
+
+        # Clear carry-forward state after chat turns (per D-11)
+        self._last_retrieved_paths = []
+
         return response
 
 
