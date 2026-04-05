@@ -267,3 +267,31 @@ def test_clear_returns_correct_count(tmp_path):
     # Manually force different timestamps by pre-creating
     count = store.clear()
     assert count == 5
+
+
+# ---------------------------------------------------------------------------
+# Structured summary body tests (Task 2)
+# ---------------------------------------------------------------------------
+
+
+def test_write_body_with_structured_summary(tmp_path):
+    """write() stores structured summary body with ## sections and date line correctly."""
+    store = _make_store(tmp_path)
+    structured_summary = (
+        "Data da sessao: 2026-04-03\n\n"
+        "## Topicos\n"
+        "Discutimos arquitetura de software.\n\n"
+        "## Decisoes\n"
+        "Optamos por usar Python 3.13.\n\n"
+        "## Contexto\n"
+        "Projeto Aurora - assistente privado."
+    )
+    path = store.write(topic="Arquitetura de Software", turn_count=4, summary=structured_summary)
+
+    assert path.exists()
+    content = path.read_text(encoding="utf-8")
+    body = content.split("---", 2)[2].strip()
+    assert "Data da sessao: 2026-04-03" in body
+    assert "## Topicos" in body
+    assert "## Decisoes" in body
+    assert "## Contexto" in body

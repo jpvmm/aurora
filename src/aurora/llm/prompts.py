@@ -48,7 +48,17 @@ SUMMARIZE_SESSION_PROMPT = """Resuma a conversa a seguir de forma concisa e util
 
 Formato obrigatorio:
 - Primeira linha: titulo curto (maximo 60 caracteres) descrevendo o tema principal
-- Linhas seguintes: resumo em 2-4 paragrafos capturando os pontos chave, decisoes, e informacoes relevantes
+- Segunda linha: Data da sessao: {date}
+- Corpo organizado nas seguintes secoes:
+
+## Topicos
+Liste os principais assuntos discutidos.
+
+## Decisoes
+Liste decisoes tomadas ou conclusoes alcancadas. Se nenhuma, escreva "Nenhuma decisao registrada."
+
+## Contexto
+Informacoes de fundo relevantes para consulta futura.
 
 Nao inclua saudacoes ou preambulos. Va direto ao conteudo.
 

@@ -1,6 +1,7 @@
 """LLMService — grounded Q&A, free chat, and intent classification via llama.cpp."""
 from __future__ import annotations
 
+from datetime import date
 from typing import Callable
 
 from aurora.llm.prompts import INTENT_PROMPT, SUMMARIZE_SESSION_PROMPT, SYSTEM_PROMPT_GROUNDED
@@ -85,7 +86,13 @@ class LLMService:
             f"{t['role']}: {t['content']}" for t in turns
         )
         messages = [
-            {"role": "user", "content": SUMMARIZE_SESSION_PROMPT.format(conversation=conversation)},
+            {
+                "role": "user",
+                "content": SUMMARIZE_SESSION_PROMPT.format(
+                    conversation=conversation,
+                    date=date.today().isoformat(),
+                ),
+            },
         ]
         return self._sync_fn(
             endpoint_url=self._endpoint_url,

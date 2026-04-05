@@ -38,6 +38,26 @@ class TestSummarizeSessionPrompt:
         prompt_lower = SUMMARIZE_SESSION_PROMPT.lower()
         assert any(word in prompt_lower for word in ["resumo", "conversa", "resumir", "resuma"])
 
+    def test_summarize_session_prompt_contains_topicos_section(self) -> None:
+        """Structured prompt must include ## Topicos section instruction."""
+        assert "## Topicos" in SUMMARIZE_SESSION_PROMPT
+
+    def test_summarize_session_prompt_contains_decisoes_section(self) -> None:
+        """Structured prompt must include ## Decisoes section instruction."""
+        assert "## Decisoes" in SUMMARIZE_SESSION_PROMPT
+
+    def test_summarize_session_prompt_contains_contexto_section(self) -> None:
+        """Structured prompt must include ## Contexto section instruction."""
+        assert "## Contexto" in SUMMARIZE_SESSION_PROMPT
+
+    def test_summarize_session_prompt_contains_date_placeholder(self) -> None:
+        """Structured prompt must include {date} format placeholder for session date."""
+        assert "{date}" in SUMMARIZE_SESSION_PROMPT
+
+    def test_summarize_session_prompt_contains_data_da_sessao(self) -> None:
+        """Prompt must require 'Data da sessao:' line in output."""
+        assert "Data da sessao" in SUMMARIZE_SESSION_PROMPT
+
 
 # ---------------------------------------------------------------------------
 # LLMService.summarize_session tests
@@ -79,10 +99,13 @@ class TestLLMServiceSummarizeSession:
         service.summarize_session(turns)
         call_kwargs = mock_sync_fn.call_args[1]
         messages = call_kwargs["messages"]
-        # The prompt content should contain the formatted turns
+        # The prompt content should contain the formatted turns AND today's date
         combined = " ".join(m["content"] for m in messages)
         assert "pergunta sobre Python" in combined
         assert "Python e uma linguagem" in combined
+        # Date should also be present in the formatted prompt
+        from datetime import date
+        assert date.today().isoformat() in combined
 
     def test_summarize_session_returns_raw_llm_response(self) -> None:
         raw_response = "Titulo da Sessao\nEste e um resumo do conteudo da sessao."
@@ -175,6 +198,31 @@ class TestMemorySummarizer:
         result = summarizer.summarize_and_save(history_turns=[], turn_count=2)
         assert result is None
         mock_llm.summarize_session.assert_not_called()
+
+    def test_summarize_and_save_injects_date_when_missing_from_llm(self, tmp_path: Path) -> None:
+        """Safety net: if LLM body lacks 'Data da sessao:', summarizer injects it."""
+        from datetime import date
+        # LLM response does NOT include Data da sessao in body
+        llm_response = "Topico da Sessao\n## Topicos\nDiscutimos Python."
+        summarizer, _, store = self._make_summarizer(tmp_path, llm_response=llm_response)
+        turns = [{"role": "user", "content": "m"}, {"role": "assistant", "content": "r"}]
+        result = summarizer.summarize_and_save(history_turns=turns, turn_count=2)
+        assert result is not None
+        content = result.read_text(encoding="utf-8")
+        assert "Data da sessao:" in content
+        assert date.today().isoformat() in content
+
+    def test_summarize_and_save_preserves_date_when_present_from_llm(self, tmp_path: Path) -> None:
+        """If LLM body already includes Data da sessao:, do not duplicate it."""
+        # LLM response includes Data da sessao in body
+        llm_response = "Topico da Sessao\nData da sessao: 2026-04-05\n## Topicos\nDiscutimos Python."
+        summarizer, _, store = self._make_summarizer(tmp_path, llm_response=llm_response)
+        turns = [{"role": "user", "content": "m"}, {"role": "assistant", "content": "r"}]
+        result = summarizer.summarize_and_save(history_turns=turns, turn_count=2)
+        assert result is not None
+        content = result.read_text(encoding="utf-8")
+        # Only ONE occurrence of "Data da sessao:" (not duplicated)
+        assert content.count("Data da sessao:") == 1
 
 
 # ---------------------------------------------------------------------------
