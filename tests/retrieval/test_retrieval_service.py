@@ -556,3 +556,166 @@ class TestMemoryPrompts:
         result = build_system_prompt_with_preferences(base, prefs_path)
 
         assert result == base
+
+
+# ---------------------------------------------------------------------------
+# MAX_CONTEXT_CHARS constant
+# ---------------------------------------------------------------------------
+
+
+def test_max_context_chars_is_24000():
+    """MAX_CONTEXT_CHARS must equal 24,000 characters."""
+    assert MAX_CONTEXT_CHARS == 24_000
+
+
+# ---------------------------------------------------------------------------
+# _extract_proper_nouns helper
+# ---------------------------------------------------------------------------
+
+
+class TestExtractProperNouns:
+    """Tests for the _extract_proper_nouns helper function."""
+
+    def test_extracts_capitalized_non_first_words(self):
+        """Capitalized words that are not the first word must be returned."""
+        from aurora.retrieval.service import _extract_proper_nouns
+
+        result = _extract_proper_nouns("notas sobre Rosely")
+        assert result == {"Rosely"}
+
+    def test_skips_first_word(self):
+        """The first word of the string must be skipped even if capitalized."""
+        from aurora.retrieval.service import _extract_proper_nouns
+
+        result = _extract_proper_nouns("Onde esta Maria?")
+        assert result == {"Maria"}
+
+    def test_extracts_quoted_phrases(self):
+        """Double-quoted phrases must be extracted as proper nouns."""
+        from aurora.retrieval.service import _extract_proper_nouns
+
+        result = _extract_proper_nouns('"meu diario" de marco')
+        assert result == {"meu diario"}
+
+    def test_returns_empty_for_no_proper_nouns(self):
+        """Lowercase-only queries must return an empty set."""
+        from aurora.retrieval.service import _extract_proper_nouns
+
+        result = _extract_proper_nouns("o que eu escrevi ontem")
+        assert result == set()
+
+    def test_multiple_proper_nouns(self):
+        """Multiple capitalized words and/or quoted phrases must all be returned."""
+        from aurora.retrieval.service import _extract_proper_nouns
+
+        result = _extract_proper_nouns("conversa com Maria sobre Python")
+        assert result == {"Maria", "Python"}
+
+
+# ---------------------------------------------------------------------------
+# Keyword fallback in retrieve()
+# ---------------------------------------------------------------------------
+
+
+def _mock_backend_with_keyword(
+    search_response: QMDSearchResponse,
+    keyword_response: QMDSearchResponse | None = None,
+    fetch_content: dict[str, str | None] | None = None,
+):
+    """Create a mock backend that also supports keyword_search()."""
+    backend = _mock_backend(search_response, fetch_content)
+    if keyword_response is not None:
+        backend.keyword_search.return_value = keyword_response
+    else:
+        backend.keyword_search.return_value = QMDSearchResponse(ok=True, hits=())
+    return backend
+
+
+class TestKeywordFallback:
+    """Tests for keyword fallback in all three retrieve methods."""
+
+    def test_retrieve_runs_keyword_search_when_query_has_proper_nouns(self):
+        """retrieve() must call keyword_search when query contains proper nouns."""
+        kb_hits = [_hit("notes/a.md", score=0.80)]
+        kw_hits = [_hit("notes/rosely.md", score=0.60)]
+
+        backend = _mock_backend_with_keyword(
+            _response(kb_hits),
+            QMDSearchResponse(ok=True, hits=tuple(kw_hits)),
+            fetch_content={"notes/a.md": "content a", "notes/rosely.md": "rosely content"},
+        )
+
+        service = RetrievalService(search_backend=backend)
+        result = service.retrieve("notas sobre Rosely")
+
+        backend.search.assert_called_once_with("notas sobre Rosely")
+        backend.keyword_search.assert_called_once_with("notas sobre Rosely")
+        assert len(result.notes) == 2
+
+    def test_retrieve_skips_keyword_search_when_no_proper_nouns(self):
+        """retrieve() must NOT call keyword_search when query has no proper nouns."""
+        kb_hits = [_hit("notes/a.md", score=0.80)]
+        backend = _mock_backend_with_keyword(
+            _response(kb_hits),
+            fetch_content={"notes/a.md": "content a"},
+        )
+
+        service = RetrievalService(search_backend=backend)
+        service.retrieve("o que eu escrevi ontem")
+
+        backend.keyword_search.assert_not_called()
+
+    def test_retrieve_deduplicates_keyword_and_hybrid_results(self):
+        """When same path returned by both, keep highest score."""
+        path = "notes/dup.md"
+        kb_hits = [_hit(path, score=0.50)]
+        kw_hits = [_hit(path, score=0.80)]  # higher score from keyword
+
+        backend = _mock_backend_with_keyword(
+            _response(kb_hits),
+            QMDSearchResponse(ok=True, hits=tuple(kw_hits)),
+            fetch_content={path: "deduped content"},
+        )
+
+        service = RetrievalService(search_backend=backend)
+        result = service.retrieve("notas sobre Rosely")
+
+        paths = [n.path for n in result.notes]
+        assert paths.count(path) == 1
+        dup_note = next(n for n in result.notes if n.path == path)
+        assert dup_note.score == 0.80
+
+    def test_retrieve_keyword_only_results_when_hybrid_empty(self):
+        """retrieve() must return results from keyword_search when hybrid returns nothing."""
+        kw_hits = [_hit("notes/rosely.md", score=0.55)]
+
+        backend = _mock_backend_with_keyword(
+            _response([]),  # hybrid returns nothing
+            QMDSearchResponse(ok=True, hits=tuple(kw_hits)),
+            fetch_content={"notes/rosely.md": "rosely content"},
+        )
+
+        service = RetrievalService(search_backend=backend)
+        result = service.retrieve("notas sobre Rosely")
+
+        assert result.insufficient_evidence is False
+        assert len(result.notes) == 1
+        assert result.notes[0].path == "notes/rosely.md"
+
+    def test_retrieve_with_memory_also_runs_keyword_fallback(self):
+        """retrieve_with_memory() must also call keyword_search on KB backend for proper-noun queries."""
+        kb_hits = [_hit("vault/note.md", score=0.80)]
+        kw_hits = [_hit("vault/rosely.md", score=0.60)]
+
+        kb_backend = _mock_backend_with_keyword(
+            _response(kb_hits),
+            QMDSearchResponse(ok=True, hits=tuple(kw_hits)),
+            fetch_content={"vault/note.md": "vault content", "vault/rosely.md": "rosely content"},
+        )
+        mem_backend = _mock_backend(_response([]))
+
+        service = RetrievalService(search_backend=kb_backend, memory_backend=mem_backend)
+        result = service.retrieve_with_memory("notas sobre Rosely")
+
+        kb_backend.keyword_search.assert_called_once_with("notas sobre Rosely")
+        assert len(result.notes) == 2
