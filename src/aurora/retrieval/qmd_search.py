@@ -135,6 +135,85 @@ class QMDSearchBackend:
 
         return QMDSearchResponse(ok=True, hits=hits)
 
+    def keyword_search(self, query: str, *, min_score: float = 0.10) -> QMDSearchResponse:
+        """Run qmd search --json (BM25 keyword) and parse results into QMDSearchHit dataclasses.
+
+        Uses BM25 keyword matching instead of hybrid search. Suitable for proper-noun queries
+        where hybrid search may underweight exact matches (e.g., names like "Rosely").
+        """
+        command = (
+            "qmd",
+            "--index",
+            self.index_name,
+            "search",
+            "--json",
+            "-n",
+            str(self.top_k),
+            "-c",
+            self.collection_name,
+            "--min-score",
+            f"{min_score:.2f}",
+            query,
+        )
+        try:
+            result = self._run_command(command)
+        except FileNotFoundError:
+            return QMDSearchResponse(
+                ok=False,
+                hits=(),
+                diagnostics=(
+                    QMDSearchDiagnostic(
+                        category="backend_unavailable",
+                        recovery_hint="Comando `qmd` nao encontrado. Instale o QMD e valide com `qmd --help`.",
+                    ),
+                ),
+            )
+
+        if result.returncode != 0:
+            return QMDSearchResponse(
+                ok=False,
+                hits=(),
+                diagnostics=(
+                    QMDSearchDiagnostic(
+                        category="query_failed",
+                        recovery_hint=(
+                            f"Falha ao executar qmd search. "
+                            f"Execute `qmd --index {self.index_name} search` manualmente para diagnosticar."
+                        ),
+                    ),
+                ),
+            )
+
+        try:
+            raw_hits = json.loads(result.stdout or "[]")
+        except json.JSONDecodeError:
+            return QMDSearchResponse(
+                ok=False,
+                hits=(),
+                diagnostics=(
+                    QMDSearchDiagnostic(
+                        category="parse_error",
+                        recovery_hint="Saida do qmd search nao e JSON valido. Execute `aurora kb update` para reindexar.",
+                    ),
+                ),
+            )
+
+        if not isinstance(raw_hits, list):
+            raw_hits = []
+
+        hits = tuple(
+            QMDSearchHit(
+                path=hit.get("file") or hit.get("displayPath") or "",
+                score=float(hit.get("score", 0.0)),
+                title=str(hit.get("title", "")),
+                snippet=str(hit.get("snippet", "")),
+            )
+            for hit in raw_hits
+            if isinstance(hit, dict)
+        )
+
+        return QMDSearchResponse(ok=True, hits=hits)
+
     def fetch(self, relative_path: str) -> str | None:
         """Run qmd get <collection>/<relative_path> and return full note content.
 

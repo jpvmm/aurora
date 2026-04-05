@@ -37,7 +37,7 @@ class RuntimeSettings(BaseSettings):
     kb_auto_embeddings_enabled: bool = True
     kb_scheduler_enabled: bool = False
     kb_scheduler_hour_local: int = 9
-    retrieval_top_k: int = 7
+    retrieval_top_k: int = 15
     retrieval_min_score: float = 0.30
     chat_history_max_turns: int = 10
     memory_top_k: int = 5
@@ -78,8 +78,8 @@ class RuntimeSettings(BaseSettings):
     @field_validator("retrieval_top_k")
     @classmethod
     def _validate_retrieval_top_k(cls, value: int) -> int:
-        if value < 5 or value > 10:
-            raise ValueError("retrieval_top_k deve estar entre 5 e 10.")
+        if value < 5 or value > 30:
+            raise ValueError("retrieval_top_k deve estar entre 5 e 30.")
         return value
 
     @field_validator("memory_top_k")
