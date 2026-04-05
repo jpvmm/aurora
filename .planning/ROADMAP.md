@@ -127,7 +127,7 @@ Plans:
 **Goal:** Fix the memory pipeline so it works end-to-end: three-way intent classification (vault/memory/chat), memory-first retrieval for memory questions, aurora ask also reads memories, improved summary quality for better retrieval, and clear memory-vault distinction in responses.
 **Requirements**: MEM-01, MEM-02, MEM-03, MEM-04
 **Depends on:** Phase 4
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
 - [ ] `04.1-01-PLAN.md` — Upgrade intent classification to three-way (vault/memory/chat), add memory-first system prompt, restructure summary format with date injection.

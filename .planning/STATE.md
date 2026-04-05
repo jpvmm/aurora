@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Ready to plan
-last_updated: "2026-04-04T23:02:28.517Z"
+status: Ready to execute
+last_updated: "2026-04-05T18:57:49.122Z"
 progress:
-  total_phases: 8
+  total_phases: 9
   completed_phases: 6
-  total_plans: 25
-  completed_plans: 25
+  total_plans: 27
+  completed_plans: 26
 ---
 
 # STATE: Aurora
@@ -21,8 +21,8 @@ progress:
 
 ## Current Position
 
-Phase: 5
-Plan: Not started
+Phase: 04.1 (fix-memory-pipeline) — EXECUTING
+Plan: 2 of 2
 
 - **Current phase**: 03 - Grounded Retrieval Experience
 - **Current plan**: Plan 02 complete; next is Plan 03 (aurora chat interactive command).
@@ -44,6 +44,7 @@ Plan: Not started
 
 - Phase 01.1 inserted after Phase 1: llama.cpp server lifecycle via CLI (auto start/stop + health/status) (URGENT)
 - Phase 02.1 inserted after Phase 2: the aurora kb suit needs working. it need to be easier to configure update/delete collections and ir need to generate embeddings automatically without qmd. (URGENT)
+- Phase 04.1 inserted after Phase 4: Fix memory pipeline — refine memory retrieval, intent classification, QMD embedding, and memory-vault distinction (URGENT)
 
 ### Decisions
 
@@ -116,6 +117,9 @@ Plan: Not started
 - [Phase 04-long-term-memory-fusion]: Vault turns now use chat_turn with manually assembled messages for full prompt control, replacing ask_grounded which hardcoded the system prompt.
 - [Phase 04-long-term-memory-fusion]: memory_backend=None in RetrievalService: retrieve_with_memory() falls back to KB-only results when no memory backend is configured.
 - [Phase 04-long-term-memory-fusion]: Memory clear removes QMD collection via _remove_qmd_collection helper that silently ignores FileNotFoundError (qmd may not be installed).
+- [Phase 04.1]: Check 'memory' before 'vault' in classify_intent() because memory is more specific; prevents accidental vault matches on memory queries
+- [Phase 04.1]: Date injection placed in MemorySummarizer (not EpisodicMemoryStore) to keep store.write() signature stable; date presence is an invariant at domain layer
+- [Phase 04.1]: SYSTEM_PROMPT_MEMORY_FIRST is separate from SYSTEM_PROMPT_GROUNDED_WITH_MEMORY — memory-first prioritizes session history while grounded-with-memory prioritizes vault notes
 
 ### TODOs
 
