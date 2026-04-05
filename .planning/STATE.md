@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Ready to plan
-last_updated: "2026-04-05T19:33:54.764Z"
+status: Executing Phase 04.2
+last_updated: "2026-04-05T19:27:36.157Z"
 progress:
   total_phases: 10
   completed_phases: 7
   total_plans: 29
-  completed_plans: 28
+  completed_plans: 27
 ---
 
 # STATE: Aurora
@@ -21,8 +21,8 @@ progress:
 
 ## Current Position
 
-Phase: 5
-Plan: Not started
+Phase: 04.2 (fix-retrieval-quality) — EXECUTING
+Plan: 1 of 2
 
 - **Current phase**: 04.1 - Fix Memory Pipeline (complete)
 - **Current plan**: Phase 04.1 complete (2/2 plans executed)
@@ -124,7 +124,6 @@ Plan: Not started
 - [Phase 04.1-02]: retrieve_memory_first mirrors retrieve_with_memory but reverses ordering — memory notes before vault notes
 - [Phase 04.1-02]: aurora ask always creates QMDSearchBackend for memory and uses retrieve_with_memory; chat_turn used when memory notes present, ask_grounded for vault-only results
 - [Phase 04.1-02]: _handle_memory_turn uses get_system_prompt_memory_first with temporal emphasis on conversas anteriores
-- [Phase 04.2-fix-retrieval-quality]: retrieval_top_k raised to 15 with 5-30 range; MAX_CONTEXT_CHARS doubled to 24K; keyword_search() added to QMDSearchBackend using qmd search (BM25) with min_score=0.10; keyword fallback in all three RetrievalService retrieve paths when proper nouns detected
 
 ### TODOs
 
