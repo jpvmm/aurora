@@ -105,9 +105,21 @@ def test_classify_intent_returns_vault_when_response_contains_vault():
 
 
 def test_classify_intent_returns_chat_for_non_vault_response():
-    """classify_intent() must return 'chat' when LLM response does not contain 'vault'."""
+    """classify_intent() must return 'chat' when LLM response contains neither 'vault' nor 'memory'."""
     service = _service(sync_fn=lambda **kwargs: "chat")
     assert service.classify_intent("How's the weather?") == "chat"
+
+
+def test_classify_intent_returns_memory_when_response_contains_memory():
+    """classify_intent() must return 'memory' when LLM response contains 'memory'."""
+    service = _service(sync_fn=lambda **kwargs: "memory")
+    assert service.classify_intent("o que conversamos ontem?") == "memory"
+
+
+def test_classify_intent_returns_chat_for_garbage_output():
+    """classify_intent() must return 'chat' as fallback for unrecognized LLM output."""
+    service = _service(sync_fn=lambda **kwargs: "asdfgh")
+    assert service.classify_intent("some question") == "chat"
 
 
 def test_classify_intent_uses_sync_fn_not_streaming():

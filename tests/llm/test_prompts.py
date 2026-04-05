@@ -6,6 +6,8 @@ from aurora.llm.prompts import (
     INTENT_PROMPT,
     SYSTEM_PROMPT_CHAT,
     SYSTEM_PROMPT_GROUNDED,
+    SYSTEM_PROMPT_MEMORY_FIRST,
+    get_system_prompt_memory_first,
 )
 
 
@@ -48,3 +50,61 @@ def test_intent_prompt_contains_chat_classification():
 def test_insufficient_evidence_msg_content():
     """INSUFFICIENT_EVIDENCE_MSG must contain expected pt-BR refusal text."""
     assert "Nao encontrei evidencia suficiente" in INSUFFICIENT_EVIDENCE_MSG
+
+
+# ---------------------------------------------------------------------------
+# Three-way intent classification tests (Task 1)
+# ---------------------------------------------------------------------------
+
+
+def test_intent_prompt_contains_memory_classification():
+    """INTENT_PROMPT must have 'memory' as a classification option."""
+    assert "memory" in INTENT_PROMPT
+
+
+def test_intent_prompt_has_three_categories():
+    """INTENT_PROMPT must have all three categories: vault, memory, chat."""
+    assert "vault" in INTENT_PROMPT
+    assert "memory" in INTENT_PROMPT
+    assert "chat" in INTENT_PROMPT
+
+
+def test_intent_prompt_has_memory_examples():
+    """INTENT_PROMPT must include example memory-pattern phrases."""
+    assert any(phrase in INTENT_PROMPT for phrase in ["conversamos", "lembra", "ultima sessao"])
+
+
+def test_intent_prompt_three_way_response_instruction():
+    """INTENT_PROMPT must instruct to respond with vault, memory, or chat."""
+    # The final instruction must mention all three options
+    assert "vault" in INTENT_PROMPT and "memory" in INTENT_PROMPT and "chat" in INTENT_PROMPT
+    # Should say something like "vault, memory ou chat"
+    assert "vault, memory ou chat" in INTENT_PROMPT or "vault, memory, ou chat" in INTENT_PROMPT
+
+
+# ---------------------------------------------------------------------------
+# Memory-first system prompt tests (Task 1)
+# ---------------------------------------------------------------------------
+
+
+def test_system_prompt_memory_first_exists():
+    """SYSTEM_PROMPT_MEMORY_FIRST must be a non-empty string."""
+    assert isinstance(SYSTEM_PROMPT_MEMORY_FIRST, str)
+    assert len(SYSTEM_PROMPT_MEMORY_FIRST) > 0
+
+
+def test_system_prompt_memory_first_has_temporal_emphasis():
+    """Memory-first prompt must emphasize past conversations and memories."""
+    assert "conversas anteriores" in SYSTEM_PROMPT_MEMORY_FIRST or "Priorize as memorias" in SYSTEM_PROMPT_MEMORY_FIRST
+
+
+def test_system_prompt_memory_first_has_memory_citation_format():
+    """Memory-first prompt must include [memoria: ...] citation format."""
+    assert "[memoria:" in SYSTEM_PROMPT_MEMORY_FIRST
+
+
+def test_get_system_prompt_memory_first_returns_nonempty_string():
+    """get_system_prompt_memory_first() must return a non-empty string."""
+    result = get_system_prompt_memory_first()
+    assert isinstance(result, str)
+    assert len(result) > 0

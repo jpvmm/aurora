@@ -94,11 +94,12 @@ class LLMService:
         )
 
     def classify_intent(self, message: str) -> str:
-        """Classify user message intent as 'vault' or 'chat'.
+        """Classify user message intent as 'vault', 'memory', or 'chat'.
 
         Uses non-streaming sync call (per anti-pattern in RESEARCH.md).
         Sends only the single classification message — no conversation history (per Pitfall 5, D-14).
-        Returns 'vault' if LLM response contains 'vault', otherwise 'chat'.
+        Returns 'memory' if LLM response contains 'memory' (checked first),
+        'vault' if response contains 'vault', otherwise 'chat'.
         """
         messages = [
             {"role": "user", "content": INTENT_PROMPT.format(message=message)},
@@ -108,7 +109,12 @@ class LLMService:
             model_id=self._model_id,
             messages=messages,
         )
-        return "vault" if "vault" in result.lower() else "chat"
+        raw = result.lower()
+        if "memory" in raw:
+            return "memory"
+        if "vault" in raw:
+            return "vault"
+        return "chat"
 
 
 __all__ = ["LLMService"]
