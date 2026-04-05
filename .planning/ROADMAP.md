@@ -23,7 +23,7 @@
 | 4. Long-Term Memory Fusion | 3/3 | Complete   | 2026-04-04 |
 | 4.1. Fix Memory Pipeline | 2/2 | Complete | 2026-04-05 |
 | 4.2. Fix Retrieval Quality | 2/2 | Complete | 2026-04-05 |
-| 5. Operational Command Surface | 0/1 | Not started | - |
+| 5. Operational Command Surface | 0/2 | Not started | - |
 | 6. Runtime Profiles and Safe Observability | 0/1 | Not started | - |
 
 ## Phase Details
@@ -153,7 +153,11 @@ Plans:
 1. User can run dedicated commands for ingest, update, delete, ask, and status operations.
 2. User can check current system state through status command output.
 3. User can run `aurora doctor` to validate runtime dependencies and model readiness with actionable guidance.
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] `05-01-PLAN.md` — Restructure CLI to 4 core commands (ask, chat, status, doctor) + config namespace; add deprecation aliases for old top-level kb/model/memory; enable shell completions.
+- [ ] `05-02-PLAN.md` — Create unified `aurora status` dashboard and extend `aurora doctor` with full-stack checks (QMD, KB, memory, disk, Python, packages) and --json output.
 
 ### Phase 6: Runtime Profiles and Safe Observability
 **Goal**: User can tune model behavior safely while preserving privacy-first logging defaults.
@@ -198,4 +202,4 @@ Orphans: 0
 Duplicates: 0
 
 ---
-*Last updated: 2026-04-05 after executing phase 04.2 plan 02*
+*Last updated: 2026-04-05 after planning phase 05*
