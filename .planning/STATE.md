@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Ready to execute
-last_updated: "2026-04-05T18:57:49.122Z"
+status: Phase 04.1 complete
+last_updated: "2026-04-05T19:10:00.000Z"
 progress:
   total_phases: 9
-  completed_phases: 6
+  completed_phases: 7
   total_plans: 27
-  completed_plans: 26
+  completed_plans: 27
 ---
 
 # STATE: Aurora
@@ -16,19 +16,19 @@ progress:
 ## Project Reference
 
 - **Core value**: Total privacy with useful long-term memory over the vault, without external services.
-- **Current focus**: Phase 03 plan 02 completed (aurora ask grounded Q&A command).
+- **Current focus**: Phase 04.1 plan 02 completed (memory-first retrieval, three-way routing, dual-source ask).
 - **Depth mode**: comprehensive
 
 ## Current Position
 
-Phase: 04.1 (fix-memory-pipeline) — EXECUTING
-Plan: 2 of 2
+Phase: 04.1 (fix-memory-pipeline) — COMPLETE
+Plan: 2 of 2 — ALL DONE
 
-- **Current phase**: 03 - Grounded Retrieval Experience
-- **Current plan**: Plan 02 complete; next is Plan 03 (aurora chat interactive command).
-- **Status**: Phase 03 plan 02 complete (2/3 plans executed)
-- **Overall progress**: 21/22 plans complete
-- **Progress bar**: [██████████] 100%
+- **Current phase**: 04.1 - Fix Memory Pipeline (complete)
+- **Current plan**: Phase 04.1 complete (2/2 plans executed)
+- **Status**: Phase 04.1 complete
+- **Overall progress**: 27/27 plans complete
+- **Progress bar**: [███████████] 100%
 
 ## Performance Metrics
 
@@ -120,6 +120,9 @@ Plan: 2 of 2
 - [Phase 04.1]: Check 'memory' before 'vault' in classify_intent() because memory is more specific; prevents accidental vault matches on memory queries
 - [Phase 04.1]: Date injection placed in MemorySummarizer (not EpisodicMemoryStore) to keep store.write() signature stable; date presence is an invariant at domain layer
 - [Phase 04.1]: SYSTEM_PROMPT_MEMORY_FIRST is separate from SYSTEM_PROMPT_GROUNDED_WITH_MEMORY — memory-first prioritizes session history while grounded-with-memory prioritizes vault notes
+- [Phase 04.1-02]: retrieve_memory_first mirrors retrieve_with_memory but reverses ordering — memory notes before vault notes
+- [Phase 04.1-02]: aurora ask always creates QMDSearchBackend for memory and uses retrieve_with_memory; chat_turn used when memory notes present, ask_grounded for vault-only results
+- [Phase 04.1-02]: _handle_memory_turn uses get_system_prompt_memory_first with temporal emphasis on conversas anteriores
 
 ### TODOs
 
@@ -131,10 +134,10 @@ Plan: 2 of 2
 
 ## Session Continuity
 
-- **Last action**: Executed `03-02-PLAN.md` and created `03-02-SUMMARY.md`.
-- **Next command**: Execute Phase 03 Plan 03 (aurora chat interactive command).
-- **If resuming later**: Open `.planning/phases/03-grounded-retrieval-experience/03-02-SUMMARY.md`.
+- **Last action**: Executed `04.1-02-PLAN.md` and created `04.1-02-SUMMARY.md`.
+- **Next command**: Phase 04.1 complete. All planned work done.
+- **If resuming later**: Open `.planning/phases/04.1-fix-memory-pipeline-refine-memory-retrieval-intent-classification-qmd-embedding-and-memory-vault-distinction/04.1-02-SUMMARY.md`.
 
 ---
 *Initialized: 2026-03-01*
-*Last updated: 2026-04-03 after executing phase 03 plan 02*
+*Last updated: 2026-04-05 after executing phase 04.1 plan 02*

@@ -21,7 +21,7 @@
 | 2. Vault Knowledge Base Lifecycle | 6/6 | Complete   | 2026-03-04 |
 | 3. Grounded Retrieval Experience | 3/3 | In progress | - |
 | 4. Long-Term Memory Fusion | 3/3 | Complete   | 2026-04-04 |
-| 4.1. Fix Memory Pipeline | 0/2 | Not started | - |
+| 4.1. Fix Memory Pipeline | 2/2 | Complete | 2026-04-05 |
 | 5. Operational Command Surface | 0/1 | Not started | - |
 | 6. Runtime Profiles and Safe Observability | 0/1 | Not started | - |
 
@@ -127,11 +127,11 @@ Plans:
 **Goal:** Fix the memory pipeline so it works end-to-end: three-way intent classification (vault/memory/chat), memory-first retrieval for memory questions, aurora ask also reads memories, improved summary quality for better retrieval, and clear memory-vault distinction in responses.
 **Requirements**: MEM-01, MEM-02, MEM-03, MEM-04
 **Depends on:** Phase 4
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
-- [ ] `04.1-01-PLAN.md` — Upgrade intent classification to three-way (vault/memory/chat), add memory-first system prompt, restructure summary format with date injection.
-- [ ] `04.1-02-PLAN.md` — Wire memory-first retrieval, three-way ChatSession routing, and dual-source aurora ask.
+- [x] `04.1-01-PLAN.md` — Upgrade intent classification to three-way (vault/memory/chat), add memory-first system prompt, restructure summary format with date injection. (`04.1-01-SUMMARY.md`, 2026-04-05)
+- [x] `04.1-02-PLAN.md` — Wire memory-first retrieval, three-way ChatSession routing, and dual-source aurora ask. (`04.1-02-SUMMARY.md`, 2026-04-05)
 
 ### Phase 5: Operational Command Surface
 **Goal**: User can operate Aurora end-to-end through explicit commands and built-in diagnostics.
