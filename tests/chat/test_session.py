@@ -449,3 +449,215 @@ class TestChatSessionMemoryIntent:
         mock_retrieval.retrieve.assert_not_called()
         mock_retrieval.retrieve_memory_first.assert_not_called()
         mock_llm.chat_turn.assert_called_once()
+
+
+class TestCarryForward:
+    """Tests for carry-forward state tracking in ChatSession (D-08, D-09, D-10, D-11)."""
+
+    def _make_vault_session(
+        self,
+        tmp_path: "Path",
+        *,
+        notes: "list[RetrievedNote] | None" = None,
+        insufficient: bool = False,
+        llm_response: str = "resposta teste",
+    ) -> "tuple[ChatSession, MagicMock, MagicMock]":
+        """Create ChatSession with vault intent and configurable retrieval notes."""
+        history = ChatHistory(path=tmp_path / "history.jsonl")
+        mock_retrieval = MagicMock()
+        mock_llm = MagicMock()
+
+        mock_llm.classify_intent.return_value = "vault"
+        mock_llm.chat_turn.return_value = llm_response
+
+        if insufficient:
+            result = RetrievalResult(ok=True, notes=(), context_text="", insufficient_evidence=True)
+        else:
+            _notes = notes or [RetrievedNote(path="notas/test.md", score=0.9, content="conteudo")]
+            result = RetrievalResult(ok=True, notes=tuple(_notes), context_text="context", insufficient_evidence=False)
+
+        mock_retrieval.retrieve.return_value = result
+        mock_retrieval._memory_backend = None
+        mock_retrieval._backend = MagicMock()
+        mock_retrieval._assemble_context = MagicMock(return_value="context combinado")
+
+        session = ChatSession(
+            history=history,
+            retrieval=mock_retrieval,
+            llm=mock_llm,
+            settings_loader=lambda: _mock_settings(),
+            on_token=lambda t: None,
+            on_insufficient=lambda msg: None,
+        )
+        return session, mock_llm, mock_retrieval
+
+    def test_vault_turn_stores_retrieved_paths(self, tmp_path: Path) -> None:
+        """After a vault turn, _last_retrieved_paths contains the retrieved note paths."""
+        note_a = RetrievedNote(path="notas/a.md", score=0.9, content="conteudo a")
+        note_b = RetrievedNote(path="notas/b.md", score=0.8, content="conteudo b")
+        session, _, _ = self._make_vault_session(tmp_path, notes=[note_a, note_b])
+
+        session.process_turn("o que e Python?")
+
+        assert set(session._last_retrieved_paths) == {"notas/a.md", "notas/b.md"}
+
+    def test_carry_forward_supplements_fresh_results(self, tmp_path: Path) -> None:
+        """Turn 2 should fetch and include note from turn 1 that is not in fresh results."""
+        note_a = RetrievedNote(path="notas/a.md", score=0.9, content="conteudo a")
+        note_b = RetrievedNote(path="notas/b.md", score=0.8, content="conteudo b")
+
+        history = ChatHistory(path=tmp_path / "history.jsonl")
+        mock_retrieval = MagicMock()
+        mock_llm = MagicMock()
+        mock_llm.classify_intent.return_value = "vault"
+        mock_llm.chat_turn.return_value = "resposta"
+
+        # Turn 1: returns note A
+        result_1 = RetrievalResult(ok=True, notes=(note_a,), context_text="context 1", insufficient_evidence=False)
+        # Turn 2: returns note B (not note A)
+        result_2 = RetrievalResult(ok=True, notes=(note_b,), context_text="context 2", insufficient_evidence=False)
+        mock_retrieval.retrieve.side_effect = [result_1, result_2]
+        mock_retrieval._memory_backend = None
+        mock_retrieval._backend = MagicMock()
+        mock_retrieval._backend.fetch.return_value = "conteudo a carregado"
+        mock_retrieval._assemble_context = MagicMock(return_value="context combinado")
+
+        session = ChatSession(
+            history=history,
+            retrieval=mock_retrieval,
+            llm=mock_llm,
+            settings_loader=lambda: _mock_settings(),
+            on_token=lambda t: None,
+            on_insufficient=lambda msg: None,
+        )
+
+        session.process_turn("primeira pergunta")
+        session.process_turn("segunda pergunta")
+
+        # fetch should have been called for note A during turn 2
+        mock_retrieval._backend.fetch.assert_called_with("notas/a.md")
+
+    def test_carry_forward_skips_paths_already_in_fresh_results(self, tmp_path: Path) -> None:
+        """If fresh results already contain the carry-forward path, fetch should not be called."""
+        note_a = RetrievedNote(path="notas/a.md", score=0.9, content="conteudo a")
+
+        history = ChatHistory(path=tmp_path / "history.jsonl")
+        mock_retrieval = MagicMock()
+        mock_llm = MagicMock()
+        mock_llm.classify_intent.return_value = "vault"
+        mock_llm.chat_turn.return_value = "resposta"
+
+        # Both turns return note A (already in fresh results on turn 2)
+        result = RetrievalResult(ok=True, notes=(note_a,), context_text="context", insufficient_evidence=False)
+        mock_retrieval.retrieve.return_value = result
+        mock_retrieval._memory_backend = None
+        mock_retrieval._backend = MagicMock()
+        mock_retrieval._assemble_context = MagicMock(return_value="context")
+
+        session = ChatSession(
+            history=history,
+            retrieval=mock_retrieval,
+            llm=mock_llm,
+            settings_loader=lambda: _mock_settings(),
+            on_token=lambda t: None,
+            on_insufficient=lambda msg: None,
+        )
+
+        session.process_turn("primeira pergunta")
+        # Reset fetch mock to check calls during turn 2 only
+        mock_retrieval._backend.fetch.reset_mock()
+        session.process_turn("segunda pergunta")
+
+        # fetch should NOT have been called for note A (already in fresh results)
+        mock_retrieval._backend.fetch.assert_not_called()
+
+    def test_carry_forward_cleared_on_chat_intent(self, tmp_path: Path) -> None:
+        """After a vault turn then a chat turn, _last_retrieved_paths should be empty."""
+        note_a = RetrievedNote(path="notas/a.md", score=0.9, content="conteudo a")
+
+        history = ChatHistory(path=tmp_path / "history.jsonl")
+        mock_retrieval = MagicMock()
+        mock_llm = MagicMock()
+        mock_llm.chat_turn.return_value = "resposta"
+
+        # First turn: vault intent
+        # Second turn: chat intent
+        mock_llm.classify_intent.side_effect = ["vault", "chat"]
+
+        vault_result = RetrievalResult(ok=True, notes=(note_a,), context_text="context", insufficient_evidence=False)
+        mock_retrieval.retrieve.return_value = vault_result
+        mock_retrieval._memory_backend = None
+        mock_retrieval._backend = MagicMock()
+        mock_retrieval._assemble_context = MagicMock(return_value="context")
+
+        session = ChatSession(
+            history=history,
+            retrieval=mock_retrieval,
+            llm=mock_llm,
+            settings_loader=lambda: _mock_settings(),
+            on_token=lambda t: None,
+            on_insufficient=lambda msg: None,
+        )
+
+        session.process_turn("vault question")
+        assert len(session._last_retrieved_paths) > 0  # Should have paths after vault turn
+        session.process_turn("ola")
+        assert session._last_retrieved_paths == []
+
+    def test_carry_forward_caps_at_3_paths(self, tmp_path: Path) -> None:
+        """Even if 5 notes are retrieved, _last_retrieved_paths must be capped at 3."""
+        notes = [
+            RetrievedNote(path=f"notas/note{i}.md", score=0.9 - i * 0.1, content=f"conteudo {i}")
+            for i in range(5)
+        ]
+        session, _, _ = self._make_vault_session(tmp_path, notes=notes)
+
+        session.process_turn("vault question")
+
+        assert len(session._last_retrieved_paths) <= 3
+
+    def test_no_carry_forward_on_first_turn(self, tmp_path: Path) -> None:
+        """On the first turn, no carry-forward fetch should occur (no previous context)."""
+        note_a = RetrievedNote(path="notas/a.md", score=0.9, content="conteudo a")
+        session, _, mock_retrieval = self._make_vault_session(tmp_path, notes=[note_a])
+
+        session.process_turn("primeira pergunta")
+
+        # No fetch calls for carry-forward on first turn
+        mock_retrieval._backend.fetch.assert_not_called()
+
+    def test_carry_forward_skips_when_fetch_returns_none(self, tmp_path: Path) -> None:
+        """If carry-forward fetch returns None, the path is skipped silently."""
+        note_a = RetrievedNote(path="notas/a.md", score=0.9, content="conteudo a")
+        note_b = RetrievedNote(path="notas/b.md", score=0.8, content="conteudo b")
+
+        history = ChatHistory(path=tmp_path / "history.jsonl")
+        mock_retrieval = MagicMock()
+        mock_llm = MagicMock()
+        mock_llm.classify_intent.return_value = "vault"
+        mock_llm.chat_turn.return_value = "resposta"
+
+        # Turn 1: returns note A; Turn 2: returns note B
+        result_1 = RetrievalResult(ok=True, notes=(note_a,), context_text="context 1", insufficient_evidence=False)
+        result_2 = RetrievalResult(ok=True, notes=(note_b,), context_text="context 2", insufficient_evidence=False)
+        mock_retrieval.retrieve.side_effect = [result_1, result_2]
+        mock_retrieval._memory_backend = None
+        mock_retrieval._backend = MagicMock()
+        # fetch returns None for note A's path (simulates failure)
+        mock_retrieval._backend.fetch.return_value = None
+        mock_retrieval._assemble_context = MagicMock(return_value="context 2")
+
+        session = ChatSession(
+            history=history,
+            retrieval=mock_retrieval,
+            llm=mock_llm,
+            settings_loader=lambda: _mock_settings(),
+            on_token=lambda t: None,
+            on_insufficient=lambda msg: None,
+        )
+
+        session.process_turn("primeira pergunta")
+        # Turn 2: fetch returns None, so no supplement is added
+        # Should not raise and should produce a valid response
+        result = session.process_turn("segunda pergunta")
+        assert result == "resposta"  # Normal response, no crash
