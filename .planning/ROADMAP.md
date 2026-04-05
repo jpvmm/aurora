@@ -139,7 +139,7 @@ Plans:
 **Goal:** Improve retrieval quality so Aurora finds relevant notes for name queries, date-range queries, and follow-up questions through higher top-K, keyword BM25 fallback for proper nouns, and session context carry-forward.
 **Requirements**: RET-01, RET-03
 **Depends on:** Phase 4.1
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
 - [ ] `04.2-01-PLAN.md` — Increase top-K to 15, widen validator to 5-30, double MAX_CONTEXT_CHARS to 24K, add keyword_search to QMDSearchBackend, wire keyword fallback into RetrievalService.
