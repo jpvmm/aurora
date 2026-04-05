@@ -17,13 +17,21 @@ runner = CliRunner()
 # Helpers
 # ---------------------------------------------------------------------------
 
-_NOTE_A = RetrievedNote(path="notas/projeto-x.md", score=0.92, content="Projeto X e sobre...")
-_NOTE_B = RetrievedNote(path="notas/contexto.md", score=0.85, content="Contexto adicional...")
+_NOTE_A = RetrievedNote(path="notas/projeto-x.md", score=0.92, content="Projeto X e sobre...", source="vault")
+_NOTE_B = RetrievedNote(path="notas/contexto.md", score=0.85, content="Contexto adicional...", source="vault")
+_NOTE_MEM = RetrievedNote(path="memory/2024-01.md", score=0.80, content="Conversa anterior...", source="memory")
 
 _GOOD_RESULT = RetrievalResult(
     ok=True,
     notes=(_NOTE_A, _NOTE_B),
     context_text="--- notas/projeto-x.md ---\nProjeto X e sobre...\n",
+    insufficient_evidence=False,
+)
+
+_GOOD_RESULT_WITH_MEMORY = RetrievalResult(
+    ok=True,
+    notes=(_NOTE_MEM, _NOTE_A),
+    context_text="--- memory/2024-01.md ---\nConversa anterior...\n--- notas/projeto-x.md ---\nProjeto X e sobre...\n",
     insufficient_evidence=False,
 )
 
@@ -58,7 +66,7 @@ def _mock_ask_grounded_streaming(mock_llm_instance: MagicMock) -> None:
 @patch("aurora.cli.ask.RetrievalService")
 def test_ask_streams_answer_to_stdout(mock_retrieval_cls, mock_llm_cls):
     """aurora ask 'query' streams answer tokens to stdout."""
-    mock_retrieval_cls.return_value.retrieve.return_value = _GOOD_RESULT
+    mock_retrieval_cls.return_value.retrieve_with_memory.return_value = _GOOD_RESULT
     _mock_ask_grounded_streaming(mock_llm_cls.return_value)
 
     result = runner.invoke(app, ["ask", "o que e o projeto X"])
@@ -76,7 +84,7 @@ def test_ask_streams_answer_to_stdout(mock_retrieval_cls, mock_llm_cls):
 @patch("aurora.cli.ask.RetrievalService")
 def test_ask_json_output(mock_retrieval_cls, mock_llm_cls):
     """aurora ask 'query' --json returns structured JSON."""
-    mock_retrieval_cls.return_value.retrieve.return_value = _GOOD_RESULT
+    mock_retrieval_cls.return_value.retrieve_with_memory.return_value = _GOOD_RESULT
     _mock_ask_grounded_streaming(mock_llm_cls.return_value)
 
     result = runner.invoke(app, ["ask", "o que e o projeto X", "--json"])
@@ -99,7 +107,7 @@ def test_ask_json_output(mock_retrieval_cls, mock_llm_cls):
 @patch("aurora.cli.ask.RetrievalService")
 def test_ask_insufficient_evidence_text(mock_retrieval_cls, mock_llm_cls):
     """aurora ask with no evidence prints pt-BR refusal and exits 0."""
-    mock_retrieval_cls.return_value.retrieve.return_value = _INSUFFICIENT_RESULT
+    mock_retrieval_cls.return_value.retrieve_with_memory.return_value = _INSUFFICIENT_RESULT
 
     result = runner.invoke(app, ["ask", "algo sem resultado"])
 
@@ -117,7 +125,7 @@ def test_ask_insufficient_evidence_text(mock_retrieval_cls, mock_llm_cls):
 @patch("aurora.cli.ask.RetrievalService")
 def test_ask_insufficient_evidence_json(mock_retrieval_cls, mock_llm_cls):
     """aurora ask --json with insufficient evidence returns JSON with insufficient_evidence=True."""
-    mock_retrieval_cls.return_value.retrieve.return_value = _INSUFFICIENT_RESULT
+    mock_retrieval_cls.return_value.retrieve_with_memory.return_value = _INSUFFICIENT_RESULT
 
     result = runner.invoke(app, ["ask", "algo sem resultado", "--json"])
 
@@ -137,13 +145,13 @@ def test_ask_insufficient_evidence_json(mock_retrieval_cls, mock_llm_cls):
 @patch("aurora.cli.ask.LLMService")
 @patch("aurora.cli.ask.RetrievalService")
 def test_ask_always_calls_retrieve(mock_retrieval_cls, mock_llm_cls):
-    """aurora ask always calls RetrievalService.retrieve(query) — no intent routing."""
-    mock_retrieval_cls.return_value.retrieve.return_value = _GOOD_RESULT
+    """aurora ask always calls RetrievalService.retrieve_with_memory(query) — no intent routing."""
+    mock_retrieval_cls.return_value.retrieve_with_memory.return_value = _GOOD_RESULT
     _mock_ask_grounded_streaming(mock_llm_cls.return_value)
 
     runner.invoke(app, ["ask", "alguma query"])
 
-    mock_retrieval_cls.return_value.retrieve.assert_called_once_with("alguma query")
+    mock_retrieval_cls.return_value.retrieve_with_memory.assert_called_once_with("alguma query")
 
 
 # ---------------------------------------------------------------------------
@@ -154,12 +162,13 @@ def test_ask_always_calls_retrieve(mock_retrieval_cls, mock_llm_cls):
 @patch("aurora.cli.ask.LLMService")
 @patch("aurora.cli.ask.RetrievalService")
 def test_ask_passes_context_text_to_llm(mock_retrieval_cls, mock_llm_cls):
-    """context_text from retrieval is passed to LLMService.ask_grounded."""
-    mock_retrieval_cls.return_value.retrieve.return_value = _GOOD_RESULT
+    """context_text from retrieval is passed to LLMService for grounded answer."""
+    mock_retrieval_cls.return_value.retrieve_with_memory.return_value = _GOOD_RESULT
     _mock_ask_grounded_streaming(mock_llm_cls.return_value)
 
     runner.invoke(app, ["ask", "minha query"])
 
+    # For vault-only results, ask_grounded is used; verify context_text passed
     call_kwargs = mock_llm_cls.return_value.ask_grounded.call_args
     assert call_kwargs is not None
     # First positional arg is query, second is context_text
@@ -176,7 +185,7 @@ def test_ask_passes_context_text_to_llm(mock_retrieval_cls, mock_llm_cls):
 @patch("aurora.cli.ask.RetrievalService")
 def test_ask_streaming_uses_print_flush(mock_retrieval_cls, mock_llm_cls):
     """Streaming output uses print(token, end='', flush=True) per Pitfall 7."""
-    mock_retrieval_cls.return_value.retrieve.return_value = _GOOD_RESULT
+    mock_retrieval_cls.return_value.retrieve_with_memory.return_value = _GOOD_RESULT
     captured_tokens: list[str] = []
 
     def side_effect(query: str, context_text: str, *, on_token):
@@ -221,7 +230,7 @@ def test_ask_logs_note_paths_and_scores(mock_retrieval_cls, mock_llm_cls, caplog
     """ask command logs retrieved note paths and scores at DEBUG (D-07), not content."""
     import logging
 
-    mock_retrieval_cls.return_value.retrieve.return_value = _GOOD_RESULT
+    mock_retrieval_cls.return_value.retrieve_with_memory.return_value = _GOOD_RESULT
     _mock_ask_grounded_streaming(mock_llm_cls.return_value)
 
     with caplog.at_level(logging.DEBUG, logger="aurora.cli.ask"):
@@ -244,3 +253,86 @@ def test_ask_command_registered_in_app():
     result = runner.invoke(app, ["ask", "--help"])
     # Should show help, not a "no such command" error
     assert result.exit_code == 0 or "vault" in result.output.lower()
+
+
+# ---------------------------------------------------------------------------
+# New tests: dual-source ask upgrade (Task 2)
+# ---------------------------------------------------------------------------
+
+
+@patch("aurora.cli.ask.LLMService")
+@patch("aurora.cli.ask.RetrievalService")
+def test_ask_uses_retrieve_with_memory_not_retrieve(mock_retrieval_cls, mock_llm_cls):
+    """aurora ask must call retrieve_with_memory(), NOT retrieve()."""
+    mock_retrieval_cls.return_value.retrieve_with_memory.return_value = _GOOD_RESULT
+    _mock_ask_grounded_streaming(mock_llm_cls.return_value)
+
+    runner.invoke(app, ["ask", "alguma query"])
+
+    mock_retrieval_cls.return_value.retrieve_with_memory.assert_called_once_with("alguma query")
+    mock_retrieval_cls.return_value.retrieve.assert_not_called()
+
+
+@patch("aurora.cli.ask.QMDSearchBackend")
+@patch("aurora.cli.ask.LLMService")
+@patch("aurora.cli.ask.RetrievalService")
+def test_ask_creates_memory_backend(mock_retrieval_cls, mock_llm_cls, mock_qmd_cls):
+    """aurora ask must instantiate QMDSearchBackend with MEMORY_INDEX and MEMORY_COLLECTION."""
+    from aurora.memory.store import MEMORY_COLLECTION, MEMORY_INDEX
+
+    mock_retrieval_cls.return_value.retrieve_with_memory.return_value = _GOOD_RESULT
+    _mock_ask_grounded_streaming(mock_llm_cls.return_value)
+
+    runner.invoke(app, ["ask", "alguma query"])
+
+    mock_qmd_cls.assert_called_once_with(
+        index_name=MEMORY_INDEX,
+        collection_name=MEMORY_COLLECTION,
+    )
+
+
+@patch("aurora.cli.ask.LLMService")
+@patch("aurora.cli.ask.RetrievalService")
+def test_ask_status_message_mentions_memorias(mock_retrieval_cls, mock_llm_cls):
+    """aurora ask status message must mention 'memorias' (not just 'vault')."""
+    mock_retrieval_cls.return_value.retrieve_with_memory.return_value = _GOOD_RESULT
+    _mock_ask_grounded_streaming(mock_llm_cls.return_value)
+
+    result = runner.invoke(app, ["ask", "pergunta"])
+
+    assert "memorias" in result.output.lower() or "memorias" in (result.stderr or "").lower()
+
+
+@patch("aurora.cli.ask.LLMService")
+@patch("aurora.cli.ask.RetrievalService")
+def test_ask_json_includes_memory_sources(mock_retrieval_cls, mock_llm_cls):
+    """ask --json output must include memory sources when memory notes present."""
+
+    def _chat_turn_side_effect(messages, *, on_token):
+        return "Resposta com memoria."
+
+    mock_retrieval_cls.return_value.retrieve_with_memory.return_value = _GOOD_RESULT_WITH_MEMORY
+    mock_llm_cls.return_value.chat_turn.side_effect = _chat_turn_side_effect
+
+    result = runner.invoke(app, ["ask", "o que conversamos", "--json"])
+
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert "memory/2024-01.md" in data["sources"]
+
+
+@patch("aurora.cli.ask.LLMService")
+@patch("aurora.cli.ask.RetrievalService")
+def test_ask_uses_chat_turn_when_memory_notes_present(mock_retrieval_cls, mock_llm_cls):
+    """aurora ask must use LLMService.chat_turn (not ask_grounded) when memory notes present."""
+
+    def _chat_turn_side_effect(messages, *, on_token):
+        return "Resposta com memoria."
+
+    mock_retrieval_cls.return_value.retrieve_with_memory.return_value = _GOOD_RESULT_WITH_MEMORY
+    mock_llm_cls.return_value.chat_turn.side_effect = _chat_turn_side_effect
+
+    runner.invoke(app, ["ask", "o que conversamos"])
+
+    mock_llm_cls.return_value.chat_turn.assert_called_once()
+    mock_llm_cls.return_value.ask_grounded.assert_not_called()
