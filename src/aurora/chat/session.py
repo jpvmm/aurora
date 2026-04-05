@@ -11,6 +11,7 @@ from aurora.llm.prompts import (
     get_system_prompt_chat,
     get_system_prompt_grounded,
     get_system_prompt_grounded_with_memory,
+    get_system_prompt_memory_first,
 )
 from aurora.llm.service import LLMService
 from aurora.retrieval.qmd_search import QMDSearchBackend
@@ -24,8 +25,9 @@ logger = logging.getLogger(__name__)
 class ChatSession:
     """Manages a multi-turn chat session with intent-based routing.
 
-    Each user message is classified as 'vault' or 'chat':
+    Each user message is classified as 'vault', 'memory', or 'chat':
     - vault: triggers KB retrieval + grounded response (per D-13, D-14)
+    - memory: triggers memory-first retrieval + memory-focused response (per D-04, D-15)
     - chat: free-form response using conversation history
 
     History is persisted to disk after each turn (per D-12).
@@ -108,6 +110,8 @@ class ChatSession:
 
         if intent == "vault":
             response = self._handle_vault_turn(user_message)
+        elif intent == "memory":
+            response = self._handle_memory_turn(user_message)
         else:
             self._on_status("Pensando...")
             response = self._handle_chat_turn(user_message)
@@ -151,6 +155,35 @@ class ChatSession:
         self._on_status(f"Encontrei {len(result.notes)} nota(s). Gerando resposta...")
         # Build messages manually so we control the system prompt
         context_msg = f"Contexto do vault:\n\n{result.context_text}\n\nPergunta: {user_message}"
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": context_msg},
+        ]
+
+        response = self._llm.chat_turn(messages, on_token=self._on_token)
+        print()  # final newline after streaming
+        return response
+
+    def _handle_memory_turn(self, user_message: str) -> str:
+        """Handle a memory-intent turn: retrieve from memory (+vault supplement) then generate response."""
+        self._on_status("Buscando nas memorias...")
+        result = self._retrieval.retrieve_memory_first(user_message)
+
+        logger.debug(
+            "Memory retrieval: %d notes, paths=%s",
+            len(result.notes),
+            [(n.path, n.score) for n in result.notes],
+        )
+
+        if result.insufficient_evidence:
+            self._on_insufficient(INSUFFICIENT_EVIDENCE_MSG)
+            return INSUFFICIENT_EVIDENCE_MSG
+
+        base_prompt = get_system_prompt_memory_first()
+        system_prompt = build_system_prompt_with_preferences(base_prompt, self._preferences_path)
+
+        self._on_status(f"Encontrei {len(result.notes)} fonte(s). Gerando resposta...")
+        context_msg = f"Contexto das memorias e vault:\n\n{result.context_text}\n\nPergunta: {user_message}"
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": context_msg},

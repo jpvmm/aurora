@@ -65,6 +65,60 @@ class RetrievalService:
             insufficient_evidence=False,
         )
 
+    def retrieve_memory_first(self, query: str) -> RetrievalResult:
+        """Query both KB and memory collections, merge results, memory-first (D-04, D-06).
+
+        Always queries memory backend first (priority). Queries KB as supplement.
+        Memory notes are listed first. Combined context respects MAX_CONTEXT_CHARS.
+        """
+        # Always query KB
+        kb_response = self._backend.search(query)
+
+        # Query memory collection; treat failures as empty (Pitfall 3)
+        mem_hits: tuple[QMDSearchHit, ...] = ()
+        if self._memory_backend is not None:
+            mem_response = self._memory_backend.search(query)
+            if mem_response.ok:
+                mem_hits = mem_response.hits
+
+        # Gate: no results from either source
+        has_kb = kb_response.ok and bool(kb_response.hits)
+        has_mem = bool(mem_hits)
+        if not has_kb and not has_mem:
+            return _INSUFFICIENT
+
+        # Dedup and fetch vault notes (source="vault")
+        kb_unique = self._dedup_hits(kb_response.hits if kb_response.ok else ())
+        vault_notes = self._fetch_notes(kb_unique, source="vault")
+
+        # Dedup and fetch memory notes (source="memory")
+        mem_unique = self._dedup_hits(mem_hits)
+        memory_notes: list[RetrievedNote] = []
+        if self._memory_backend is not None:
+            for hit in mem_unique:
+                content = self._memory_backend.fetch(hit.path)
+                if content is not None:
+                    memory_notes.append(
+                        RetrievedNote(
+                            path=hit.path,
+                            score=hit.score,
+                            content=content,
+                            source="memory",
+                        )
+                    )
+
+        all_notes = memory_notes + vault_notes  # MEMORY first (D-04)
+        if not all_notes:
+            return _INSUFFICIENT
+
+        context_text = self._assemble_context(all_notes)
+        return RetrievalResult(
+            ok=True,
+            notes=tuple(all_notes),
+            context_text=context_text,
+            insufficient_evidence=False,
+        )
+
     def retrieve_with_memory(self, query: str) -> RetrievalResult:
         """Query both KB and memory collections, merge results, vault-first (D-14, D-15).
 
