@@ -1,6 +1,7 @@
 """LLMService — grounded Q&A, free chat, and intent classification via llama.cpp."""
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import date
 from typing import Callable
 
@@ -100,13 +101,11 @@ class LLMService:
             messages=messages,
         )
 
-    def classify_intent(self, message: str) -> str:
-        """Classify user message intent as 'vault', 'memory', or 'chat'.
+    def classify_intent(self, message: str) -> "IntentResult":
+        """Classify user message intent and determine search strategy.
 
-        Uses non-streaming sync call (per anti-pattern in RESEARCH.md).
-        Sends only the single classification message — no conversation history (per Pitfall 5, D-14).
-        Returns 'memory' if LLM response contains 'memory' (checked first),
-        'vault' if response contains 'vault', otherwise 'chat'.
+        Returns an IntentResult with intent, search strategy, and search terms.
+        The LLM decides the best approach for each query.
         """
         messages = [
             {"role": "user", "content": INTENT_PROMPT.format(message=message)},
@@ -116,12 +115,58 @@ class LLMService:
             model_id=self._model_id,
             messages=messages,
         )
-        raw = result.lower()
-        if "memory" in raw:
-            return "memory"
-        if "vault" in raw:
-            return "vault"
-        return "chat"
+        return _parse_intent_result(result)
 
 
-__all__ = ["LLMService"]
+@dataclass(frozen=True)
+class IntentResult:
+    """Structured result from intent classification."""
+
+    intent: str  # "vault", "memory", or "chat"
+    search: str  # "hybrid", "keyword", "both", or "none"
+    terms: list[str]  # search terms extracted by the LLM
+
+
+def _parse_intent_result(raw: str) -> IntentResult:
+    """Parse structured intent response from LLM.
+
+    Expected format:
+        intent: vault|memory|chat
+        search: hybrid|keyword|both|none
+        terms: term1, term2
+    """
+    lines = raw.strip().splitlines()
+    intent = "chat"
+    search = "hybrid"
+    terms: list[str] = []
+
+    for line in lines:
+        lower_line = line.strip().lower()
+        if lower_line.startswith("intent:"):
+            value = lower_line.split(":", 1)[1].strip()
+            if "memory" in value:
+                intent = "memory"
+            elif "vault" in value:
+                intent = "vault"
+            else:
+                intent = "chat"
+        elif lower_line.startswith("search:"):
+            value = lower_line.split(":", 1)[1].strip()
+            if "both" in value:
+                search = "both"
+            elif "keyword" in value:
+                search = "keyword"
+            elif "hybrid" in value:
+                search = "hybrid"
+            else:
+                search = "none"
+        elif lower_line.startswith("terms:"):
+            # Preserve original case for terms (names, proper nouns)
+            value = line.strip().split(":", 1)[1].strip()
+            if value and value.lower() != "none":
+                terms = [t.strip() for t in value.split(",") if t.strip()]
+
+    return IntentResult(intent=intent, search=search, terms=terms)
+
+
+__all__ = ["LLMService", "IntentResult", "_parse_intent_result"]

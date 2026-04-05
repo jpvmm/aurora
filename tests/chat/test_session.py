@@ -9,7 +9,13 @@ import pytest
 from aurora.chat.history import ChatHistory
 from aurora.chat.session import ChatSession
 from aurora.llm.prompts import INSUFFICIENT_EVIDENCE_MSG, SYSTEM_PROMPT_CHAT, SYSTEM_PROMPT_GROUNDED
+from aurora.llm.service import IntentResult
 from aurora.retrieval.contracts import RetrievalResult, RetrievedNote
+
+
+def _intent(intent: str, search: str = "hybrid", terms: list[str] | None = None) -> IntentResult:
+    """Helper to create IntentResult for test mocks."""
+    return IntentResult(intent=intent, search=search, terms=terms or [])
 
 
 def _make_retrieval_result(*, insufficient: bool = False, context_text: str = "context") -> RetrievalResult:
@@ -31,8 +37,8 @@ def _make_session(
     mock_retrieval = MagicMock()
     mock_llm = MagicMock()
 
-    intent = "vault" if vault_intent else "chat"
-    mock_llm.classify_intent.return_value = intent
+    intent_str = "vault" if vault_intent else "chat"
+    mock_llm.classify_intent.return_value = _intent(intent_str)
     mock_llm.ask_grounded.return_value = llm_response
     mock_llm.chat_turn.return_value = llm_response
     mock_retrieval.retrieve.return_value = _make_retrieval_result(insufficient=insufficient)
@@ -61,7 +67,7 @@ class TestChatSessionVaultIntent:
     def test_vault_turn_calls_retrieval_retrieve(self, tmp_path: Path) -> None:
         session, mock_llm, mock_retrieval = _make_session(tmp_path=tmp_path, vault_intent=True)
         session.process_turn("o que e Python?")
-        mock_retrieval.retrieve.assert_called_once_with("o que e Python?")
+        mock_retrieval.retrieve.assert_called_once_with("o que e Python?", search_strategy="hybrid", search_terms=[])
 
     def test_vault_turn_calls_chat_turn_with_context_in_messages(self, tmp_path: Path) -> None:
         """Vault turns use chat_turn with system prompt + context injected in messages."""
@@ -132,7 +138,7 @@ class TestChatSessionChatIntent:
             history.append_turn("assistant", f"a{i}")
 
         mock_llm = MagicMock()
-        mock_llm.classify_intent.return_value = "chat"
+        mock_llm.classify_intent.return_value = _intent("chat")
         mock_llm.chat_turn.return_value = "ok"
 
         session = ChatSession(
@@ -178,7 +184,7 @@ class TestChatSessionHistoryPersistence:
     def test_process_turn_appends_user_message_to_history(self, tmp_path: Path) -> None:
         history = ChatHistory(path=tmp_path / "history.jsonl")
         mock_llm = MagicMock()
-        mock_llm.classify_intent.return_value = "chat"
+        mock_llm.classify_intent.return_value = _intent("chat")
         mock_llm.chat_turn.return_value = "resposta"
 
         session = ChatSession(
@@ -197,7 +203,7 @@ class TestChatSessionHistoryPersistence:
     def test_process_turn_appends_assistant_response_to_history(self, tmp_path: Path) -> None:
         history = ChatHistory(path=tmp_path / "history.jsonl")
         mock_llm = MagicMock()
-        mock_llm.classify_intent.return_value = "chat"
+        mock_llm.classify_intent.return_value = _intent("chat")
         mock_llm.chat_turn.return_value = "minha resposta"
 
         session = ChatSession(
@@ -216,7 +222,7 @@ class TestChatSessionHistoryPersistence:
     def test_process_turn_appends_both_user_and_assistant(self, tmp_path: Path) -> None:
         history = ChatHistory(path=tmp_path / "history.jsonl")
         mock_llm = MagicMock()
-        mock_llm.classify_intent.return_value = "chat"
+        mock_llm.classify_intent.return_value = _intent("chat")
         mock_llm.chat_turn.return_value = "resp"
 
         session = ChatSession(
@@ -240,7 +246,7 @@ class TestChatSessionInsufficientEvidence:
         on_insufficient = MagicMock()
         history = ChatHistory(path=tmp_path / "history.jsonl")
         mock_llm = MagicMock()
-        mock_llm.classify_intent.return_value = "vault"
+        mock_llm.classify_intent.return_value = _intent("vault")
         mock_retrieval = MagicMock()
         mock_retrieval.retrieve.return_value = _make_retrieval_result(insufficient=True)
         mock_retrieval._memory_backend = None
@@ -260,7 +266,7 @@ class TestChatSessionInsufficientEvidence:
         """Insufficient evidence must not call chat_turn or ask_grounded."""
         history = ChatHistory(path=tmp_path / "history.jsonl")
         mock_llm = MagicMock()
-        mock_llm.classify_intent.return_value = "vault"
+        mock_llm.classify_intent.return_value = _intent("vault")
         mock_retrieval = MagicMock()
         mock_retrieval.retrieve.return_value = _make_retrieval_result(insufficient=True)
         mock_retrieval._memory_backend = None
@@ -278,7 +284,7 @@ class TestChatSessionInsufficientEvidence:
     def test_insufficient_evidence_returns_insufficient_evidence_msg(self, tmp_path: Path) -> None:
         history = ChatHistory(path=tmp_path / "history.jsonl")
         mock_llm = MagicMock()
-        mock_llm.classify_intent.return_value = "vault"
+        mock_llm.classify_intent.return_value = _intent("vault")
         mock_retrieval = MagicMock()
         mock_retrieval.retrieve.return_value = _make_retrieval_result(insufficient=True)
         mock_retrieval._memory_backend = None
@@ -305,7 +311,7 @@ class TestChatSessionMemoryBackend:
 
         history = ChatHistory(path=tmp_path / "history.jsonl")
         mock_llm = MagicMock()
-        mock_llm.classify_intent.return_value = "chat"
+        mock_llm.classify_intent.return_value = _intent("chat")
         mock_llm.chat_turn.return_value = "resp"
         mock_memory_backend = MagicMock()
 
@@ -328,7 +334,7 @@ class TestChatSessionMemoryBackend:
         history = ChatHistory(path=tmp_path / "history.jsonl")
         mock_retrieval = MagicMock()
         mock_llm = MagicMock()
-        mock_llm.classify_intent.return_value = "vault"
+        mock_llm.classify_intent.return_value = _intent("vault")
         mock_llm.ask_grounded.return_value = "resposta"
         mock_llm.chat_turn.return_value = "resposta"
 
@@ -349,7 +355,7 @@ class TestChatSessionMemoryBackend:
             on_token=lambda t: None,
         )
         session.process_turn("o que e Python?")
-        mock_retrieval.retrieve_with_memory.assert_called_once_with("o que e Python?")
+        mock_retrieval.retrieve_with_memory.assert_called_once_with("o que e Python?", search_strategy="hybrid", search_terms=[])
 
 
 class TestChatSessionMemoryIntent:
@@ -370,7 +376,7 @@ class TestChatSessionMemoryIntent:
         mock_retrieval = MagicMock()
         mock_llm = MagicMock()
 
-        mock_llm.classify_intent.return_value = "memory"
+        mock_llm.classify_intent.return_value = _intent("memory")
         mock_llm.chat_turn.return_value = llm_response
 
         if insufficient:
@@ -396,7 +402,7 @@ class TestChatSessionMemoryIntent:
         """'memory' intent must route to retrieve_memory_first, not retrieve/retrieve_with_memory."""
         session, mock_llm, mock_retrieval = self._make_memory_session(tmp_path)
         session.process_turn("o que conversamos ontem?")
-        mock_retrieval.retrieve_memory_first.assert_called_once_with("o que conversamos ontem?")
+        mock_retrieval.retrieve_memory_first.assert_called_once_with("o que conversamos ontem?", search_strategy="hybrid", search_terms=[])
 
     def test_memory_intent_does_not_call_retrieve_or_retrieve_with_memory(self, tmp_path: Path) -> None:
         """'memory' intent must NOT call retrieve() or retrieve_with_memory()."""
@@ -422,7 +428,7 @@ class TestChatSessionMemoryIntent:
         history = ChatHistory(path=tmp_path / "history.jsonl")
         mock_retrieval = MagicMock()
         mock_llm = MagicMock()
-        mock_llm.classify_intent.return_value = "vault"
+        mock_llm.classify_intent.return_value = _intent("vault")
         mock_llm.chat_turn.return_value = "vault response"
 
         vault_note = RetrievedNote(path="vault/note.md", score=0.9, content="content", source="vault")
@@ -467,7 +473,7 @@ class TestCarryForward:
         mock_retrieval = MagicMock()
         mock_llm = MagicMock()
 
-        mock_llm.classify_intent.return_value = "vault"
+        mock_llm.classify_intent.return_value = _intent("vault")
         mock_llm.chat_turn.return_value = llm_response
 
         if insufficient:
@@ -509,7 +515,7 @@ class TestCarryForward:
         history = ChatHistory(path=tmp_path / "history.jsonl")
         mock_retrieval = MagicMock()
         mock_llm = MagicMock()
-        mock_llm.classify_intent.return_value = "vault"
+        mock_llm.classify_intent.return_value = _intent("vault")
         mock_llm.chat_turn.return_value = "resposta"
 
         # Turn 1: returns note A
@@ -544,7 +550,7 @@ class TestCarryForward:
         history = ChatHistory(path=tmp_path / "history.jsonl")
         mock_retrieval = MagicMock()
         mock_llm = MagicMock()
-        mock_llm.classify_intent.return_value = "vault"
+        mock_llm.classify_intent.return_value = _intent("vault")
         mock_llm.chat_turn.return_value = "resposta"
 
         # Both turns return note A (already in fresh results on turn 2)
@@ -582,7 +588,7 @@ class TestCarryForward:
 
         # First turn: vault intent
         # Second turn: chat intent
-        mock_llm.classify_intent.side_effect = ["vault", "chat"]
+        mock_llm.classify_intent.side_effect = [_intent("vault"), _intent("chat")]
 
         vault_result = RetrievalResult(ok=True, notes=(note_a,), context_text="context", insufficient_evidence=False)
         mock_retrieval.retrieve.return_value = vault_result
@@ -634,7 +640,7 @@ class TestCarryForward:
         history = ChatHistory(path=tmp_path / "history.jsonl")
         mock_retrieval = MagicMock()
         mock_llm = MagicMock()
-        mock_llm.classify_intent.return_value = "vault"
+        mock_llm.classify_intent.return_value = _intent("vault")
         mock_llm.chat_turn.return_value = "resposta"
 
         # Turn 1: returns note A; Turn 2: returns note B

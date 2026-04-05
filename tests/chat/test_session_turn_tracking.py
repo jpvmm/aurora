@@ -8,6 +8,7 @@ import pytest
 
 from aurora.chat.history import ChatHistory
 from aurora.chat.session import ChatSession
+from aurora.llm.service import IntentResult
 
 
 def _mock_settings() -> MagicMock:
@@ -20,7 +21,7 @@ def _make_session(*, tmp_path: Path, vault_intent: bool = False) -> tuple[ChatSe
     """Create ChatSession with mocked LLMService and RetrievalService."""
     history = ChatHistory(path=tmp_path / "history.jsonl")
     mock_llm = MagicMock()
-    mock_llm.classify_intent.return_value = "vault" if vault_intent else "chat"
+    mock_llm.classify_intent.return_value = IntentResult(intent="vault" if vault_intent else "chat", search="hybrid", terms=[])
     mock_llm.ask_grounded.return_value = "resposta vault"
     mock_llm.chat_turn.return_value = "resposta chat"
 
@@ -74,7 +75,7 @@ class TestChatSessionTurnTracking:
         history.append_turn("assistant", "resposta antiga")
 
         mock_llm = MagicMock()
-        mock_llm.classify_intent.return_value = "chat"
+        mock_llm.classify_intent.return_value = IntentResult(intent="chat", search="none", terms=[])
         mock_llm.chat_turn.return_value = "ok"
 
         session = ChatSession(
@@ -99,7 +100,7 @@ class TestChatSessionTurnTracking:
         history.append_turn("assistant", "sessao anterior assistant")
 
         mock_llm = MagicMock()
-        mock_llm.classify_intent.return_value = "chat"
+        mock_llm.classify_intent.return_value = IntentResult(intent="chat", search="none", terms=[])
         mock_llm.chat_turn.return_value = "nova resposta"
 
         session = ChatSession(
@@ -129,7 +130,7 @@ class TestChatSessionTurnTracking:
             history.append_turn("assistant", f"old_asst_{i}")
 
         mock_llm = MagicMock()
-        mock_llm.classify_intent.return_value = "chat"
+        mock_llm.classify_intent.return_value = IntentResult(intent="chat", search="none", terms=[])
         mock_llm.chat_turn.return_value = "current_response"
 
         session = ChatSession(
@@ -155,7 +156,7 @@ class TestChatSessionTurnTracking:
     def test_history_property_accessible(self, tmp_path: Path) -> None:
         history = ChatHistory(path=tmp_path / "history.jsonl")
         mock_llm = MagicMock()
-        mock_llm.classify_intent.return_value = "chat"
+        mock_llm.classify_intent.return_value = IntentResult(intent="chat", search="none", terms=[])
         mock_llm.chat_turn.return_value = "ok"
         session = ChatSession(
             history=history,

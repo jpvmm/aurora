@@ -75,11 +75,11 @@ def test_intent_prompt_has_memory_examples():
 
 
 def test_intent_prompt_three_way_response_instruction():
-    """INTENT_PROMPT must instruct to respond with vault, memory, or chat."""
-    # The final instruction must mention all three options
+    """INTENT_PROMPT must instruct structured response with intent, search, and terms."""
     assert "vault" in INTENT_PROMPT and "memory" in INTENT_PROMPT and "chat" in INTENT_PROMPT
-    # Should say something like "vault, memory ou chat"
-    assert "vault, memory ou chat" in INTENT_PROMPT or "vault, memory, ou chat" in INTENT_PROMPT
+    assert "intent:" in INTENT_PROMPT
+    assert "search:" in INTENT_PROMPT
+    assert "terms:" in INTENT_PROMPT
 
 
 # ---------------------------------------------------------------------------

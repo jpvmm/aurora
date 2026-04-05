@@ -32,6 +32,13 @@ def ask_command(
         raise typer.Exit(code=1)
     query = " ".join(words)
 
+    llm = LLMService()
+
+    if not json_output:
+        typer.echo("Analisando pergunta...", err=True)
+
+    intent_result = llm.classify_intent(query)
+
     if not json_output:
         typer.echo("Buscando no vault e memorias...", err=True)
 
@@ -40,7 +47,11 @@ def ask_command(
         collection_name=MEMORY_COLLECTION,
     )
     retrieval = RetrievalService(memory_backend=memory_backend)
-    result = retrieval.retrieve_with_memory(query)
+    result = retrieval.retrieve_with_memory(
+        query,
+        search_strategy=intent_result.search,
+        search_terms=intent_result.terms,
+    )
 
     logger.debug(
         "Retrieval: %d hits, paths+scores=%s",
@@ -79,8 +90,6 @@ def ask_command(
         else:
             typer.echo(INSUFFICIENT_EVIDENCE_MSG)
         return
-
-    llm = LLMService()
 
     if json_output:
         collected: list[str] = []

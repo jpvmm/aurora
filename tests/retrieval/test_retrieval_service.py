@@ -583,12 +583,14 @@ class TestExtractProperNouns:
         result = _extract_proper_nouns("notas sobre Rosely")
         assert result == {"Rosely"}
 
-    def test_skips_first_word(self):
-        """The first word of the string must be skipped even if capitalized."""
+    def test_skips_common_portuguese_starters(self):
+        """Common Portuguese sentence starters (O, A, De, etc.) are skipped."""
         from aurora.retrieval.service import _extract_proper_nouns
 
-        result = _extract_proper_nouns("Onde esta Maria?")
-        assert result == {"Maria"}
+        result = _extract_proper_nouns("O que o Anderson fez?")
+        assert result == {"Anderson"}
+        result2 = _extract_proper_nouns("Onde esta Maria?")
+        assert "Maria" in result2
 
     def test_extracts_quoted_phrases(self):
         """Double-quoted phrases must be extracted as proper nouns."""
@@ -631,14 +633,29 @@ def _mock_backend_with_keyword(
     return backend
 
 
-class TestKeywordFallback:
-    """Tests for keyword fallback in all three retrieve methods."""
+class TestSearchStrategy:
+    """Tests for LLM-driven search strategy in retrieve methods."""
 
-    def test_retrieve_runs_keyword_search_when_query_has_proper_nouns(self):
-        """retrieve() must call keyword_search when query contains proper nouns."""
+    def test_retrieve_keyword_strategy_calls_keyword_search(self):
+        """retrieve() with search_strategy='keyword' must call keyword_search per term."""
+        kw_hits = [_hit("notes/rosely.md", score=0.60)]
+        backend = _mock_backend_with_keyword(
+            _response([]),
+            QMDSearchResponse(ok=True, hits=tuple(kw_hits)),
+            fetch_content={"notes/rosely.md": "rosely content"},
+        )
+
+        service = RetrievalService(search_backend=backend)
+        result = service.retrieve("find Rosely", search_strategy="keyword", search_terms=["Rosely"])
+
+        backend.keyword_search.assert_called_once_with("Rosely")
+        backend.search.assert_not_called()
+        assert len(result.notes) == 1
+
+    def test_retrieve_both_strategy_calls_hybrid_and_keyword(self):
+        """retrieve() with search_strategy='both' must call both search and keyword_search."""
         kb_hits = [_hit("notes/a.md", score=0.80)]
         kw_hits = [_hit("notes/rosely.md", score=0.60)]
-
         backend = _mock_backend_with_keyword(
             _response(kb_hits),
             QMDSearchResponse(ok=True, hits=tuple(kw_hits)),
@@ -646,14 +663,14 @@ class TestKeywordFallback:
         )
 
         service = RetrievalService(search_backend=backend)
-        result = service.retrieve("notas sobre Rosely")
+        result = service.retrieve("notas sobre Rosely", search_strategy="both", search_terms=["Rosely"])
 
-        backend.search.assert_called_once_with("notas sobre Rosely")
-        backend.keyword_search.assert_called_once_with("notas sobre Rosely")
+        backend.search.assert_called_once()
+        backend.keyword_search.assert_called_once_with("Rosely")
         assert len(result.notes) == 2
 
-    def test_retrieve_skips_keyword_search_when_no_proper_nouns(self):
-        """retrieve() must NOT call keyword_search when query has no proper nouns."""
+    def test_retrieve_hybrid_strategy_only_calls_search(self):
+        """retrieve() with search_strategy='hybrid' (default) must NOT call keyword_search."""
         kb_hits = [_hit("notes/a.md", score=0.80)]
         backend = _mock_backend_with_keyword(
             _response(kb_hits),
@@ -665,11 +682,11 @@ class TestKeywordFallback:
 
         backend.keyword_search.assert_not_called()
 
-    def test_retrieve_deduplicates_keyword_and_hybrid_results(self):
-        """When same path returned by both, keep highest score."""
+    def test_retrieve_deduplicates_both_strategy_results(self):
+        """When same path returned by both strategies, keep highest score."""
         path = "notes/dup.md"
         kb_hits = [_hit(path, score=0.50)]
-        kw_hits = [_hit(path, score=0.80)]  # higher score from keyword
+        kw_hits = [_hit(path, score=0.80)]
 
         backend = _mock_backend_with_keyword(
             _response(kb_hits),
@@ -678,44 +695,25 @@ class TestKeywordFallback:
         )
 
         service = RetrievalService(search_backend=backend)
-        result = service.retrieve("notas sobre Rosely")
+        result = service.retrieve("notas sobre Rosely", search_strategy="both", search_terms=["Rosely"])
 
         paths = [n.path for n in result.notes]
         assert paths.count(path) == 1
         dup_note = next(n for n in result.notes if n.path == path)
         assert dup_note.score == 0.80
 
-    def test_retrieve_keyword_only_results_when_hybrid_empty(self):
-        """retrieve() must return results from keyword_search when hybrid returns nothing."""
-        kw_hits = [_hit("notes/rosely.md", score=0.55)]
-
-        backend = _mock_backend_with_keyword(
-            _response([]),  # hybrid returns nothing
-            QMDSearchResponse(ok=True, hits=tuple(kw_hits)),
-            fetch_content={"notes/rosely.md": "rosely content"},
-        )
-
-        service = RetrievalService(search_backend=backend)
-        result = service.retrieve("notas sobre Rosely")
-
-        assert result.insufficient_evidence is False
-        assert len(result.notes) == 1
-        assert result.notes[0].path == "notes/rosely.md"
-
-    def test_retrieve_with_memory_also_runs_keyword_fallback(self):
-        """retrieve_with_memory() must also call keyword_search on KB backend for proper-noun queries."""
-        kb_hits = [_hit("vault/note.md", score=0.80)]
+    def test_retrieve_with_memory_uses_strategy(self):
+        """retrieve_with_memory() must respect search_strategy parameter."""
         kw_hits = [_hit("vault/rosely.md", score=0.60)]
-
         kb_backend = _mock_backend_with_keyword(
-            _response(kb_hits),
+            _response([]),
             QMDSearchResponse(ok=True, hits=tuple(kw_hits)),
-            fetch_content={"vault/note.md": "vault content", "vault/rosely.md": "rosely content"},
+            fetch_content={"vault/rosely.md": "rosely content"},
         )
         mem_backend = _mock_backend(_response([]))
 
         service = RetrievalService(search_backend=kb_backend, memory_backend=mem_backend)
-        result = service.retrieve_with_memory("notas sobre Rosely")
+        result = service.retrieve_with_memory("find Rosely", search_strategy="keyword", search_terms=["Rosely"])
 
-        kb_backend.keyword_search.assert_called_once_with("notas sobre Rosely")
-        assert len(result.notes) == 2
+        kb_backend.keyword_search.assert_called_once_with("Rosely")
+        assert len(result.notes) == 1

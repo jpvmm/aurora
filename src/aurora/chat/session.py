@@ -147,15 +147,18 @@ class ChatSession:
 
         Returns the assistant response text.
         """
-        # Classify intent using only the latest message (per Pitfall 5, D-14)
+        # Classify intent and search strategy using only the latest message
         self._on_status("Classificando pergunta...")
-        intent = self._llm.classify_intent(user_message)
-        logger.debug("Intent classification: message=%r -> %s", user_message[:50], intent)
+        intent_result = self._llm.classify_intent(user_message)
+        logger.debug(
+            "Intent classification: message=%r -> intent=%s search=%s terms=%s",
+            user_message[:50], intent_result.intent, intent_result.search, intent_result.terms,
+        )
 
-        if intent == "vault":
-            response = self._handle_vault_turn(user_message)
-        elif intent == "memory":
-            response = self._handle_memory_turn(user_message)
+        if intent_result.intent == "vault":
+            response = self._handle_vault_turn(user_message, intent_result)
+        elif intent_result.intent == "memory":
+            response = self._handle_memory_turn(user_message, intent_result)
         else:
             self._on_status("Pensando...")
             response = self._handle_chat_turn(user_message)
@@ -167,14 +170,20 @@ class ChatSession:
         self._turn_count += 1
         return response
 
-    def _handle_vault_turn(self, user_message: str) -> str:
+    def _handle_vault_turn(self, user_message: str, intent_result: object = None) -> str:
         """Handle a vault-intent turn: retrieve from KB (+memory if configured) then generate grounded response."""
         self._on_status("Buscando no vault...")
+        search_strategy = getattr(intent_result, "search", "hybrid") if intent_result else "hybrid"
+        search_terms = getattr(intent_result, "terms", []) if intent_result else []
         # Use dual retrieval if memory_backend is configured (per D-15)
         if self._retrieval._memory_backend is not None:
-            result = self._retrieval.retrieve_with_memory(user_message)
+            result = self._retrieval.retrieve_with_memory(
+                user_message, search_strategy=search_strategy, search_terms=search_terms,
+            )
         else:
-            result = self._retrieval.retrieve(user_message)
+            result = self._retrieval.retrieve(
+                user_message, search_strategy=search_strategy, search_terms=search_terms,
+            )
 
         logger.debug(
             "Vault retrieval: %d notes, paths=%s",
@@ -214,10 +223,14 @@ class ChatSession:
         print()  # final newline after streaming
         return response
 
-    def _handle_memory_turn(self, user_message: str) -> str:
+    def _handle_memory_turn(self, user_message: str, intent_result: object = None) -> str:
         """Handle a memory-intent turn: retrieve from memory (+vault supplement) then generate response."""
         self._on_status("Buscando nas memorias...")
-        result = self._retrieval.retrieve_memory_first(user_message)
+        search_strategy = getattr(intent_result, "search", "hybrid") if intent_result else "hybrid"
+        search_terms = getattr(intent_result, "terms", []) if intent_result else []
+        result = self._retrieval.retrieve_memory_first(
+            user_message, search_strategy=search_strategy, search_terms=search_terms,
+        )
 
         logger.debug(
             "Memory retrieval: %d notes, paths=%s",

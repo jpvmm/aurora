@@ -32,14 +32,13 @@ def _extract_proper_nouns(query: str) -> set[str]:
         result.add(phrase)
     working = re.sub(r'"[^"]+"', " ", query)
 
-    # Extract capitalized words, skipping the first word of the remaining string
+    # Extract capitalized words
+    # Skip common Portuguese sentence-start words that are conventionally capitalized
+    _SKIP_STARTS = {"O", "A", "Os", "As", "Um", "Uma", "Eu", "No", "Na", "De", "Em", "Se", "Que", "Como"}
     words = working.split()
-    for idx, word in enumerate(words):
-        if idx == 0:
-            continue  # skip sentence-start word
-        # Strip trailing punctuation
+    for word in words:
         stripped = word.rstrip("?!.,;:")
-        if len(stripped) >= 2 and stripped[0].isupper():
+        if len(stripped) >= 2 and stripped[0].isupper() and stripped not in _SKIP_STARTS:
             result.add(stripped)
 
     return result
@@ -65,25 +64,41 @@ class RetrievalService:
         self._backend = search_backend or QMDSearchBackend(settings_loader=settings_loader)
         self._memory_backend = memory_backend
 
-    def retrieve(self, query: str) -> RetrievalResult:
+    def retrieve(
+        self,
+        query: str,
+        *,
+        search_strategy: str = "hybrid",
+        search_terms: list[str] | None = None,
+    ) -> RetrievalResult:
         """Search vault and assemble grounded context for LLM consumption.
 
-        Steps:
-          1. Search QMD index (per D-05: query passed directly, no preprocessing)
-          2. If query has proper nouns, also run keyword fallback search (D-04, D-06)
-          3. Merge hybrid + keyword hits; gate on empty combined results
-          4. Deduplicate hits by path, keep highest score per path (per D-09)
-          5. Fetch full note content via qmd get (per D-03)
-          6. Skip notes whose fetch fails
-          7. Assemble context, truncate to MAX_CONTEXT_CHARS, top-ranked first (per D-04)
+        The search_strategy (from intent classification) determines which QMD commands to use:
+        - "hybrid": qmd query (semantic + keyword + rerank) — default
+        - "keyword": qmd search (BM25 exact match) — best for names, specific terms
+        - "both": run both and merge results
         """
-        search_response = self._backend.search(query)
+        all_hits: tuple[QMDSearchHit, ...] = ()
+        terms = search_terms or []
 
-        # Keyword fallback for proper-noun queries (D-04, D-06, D-07)
-        keyword_hits = self._keyword_fallback(query, self._backend)
-
-        # Merge: use hybrid hits if ok, otherwise just keyword hits
-        all_hits = (search_response.hits if search_response.ok else ()) + keyword_hits
+        if search_strategy == "keyword" and terms:
+            # Keyword-only: search each term
+            for term in terms:
+                response = self._backend.keyword_search(term)
+                if response.ok:
+                    all_hits = all_hits + response.hits
+        elif search_strategy == "both":
+            # Hybrid + keyword for specific terms
+            search_response = self._backend.search(query)
+            all_hits = search_response.hits if search_response.ok else ()
+            for term in terms:
+                response = self._backend.keyword_search(term)
+                if response.ok:
+                    all_hits = all_hits + response.hits
+        else:
+            # Default hybrid
+            search_response = self._backend.search(query)
+            all_hits = search_response.hits if search_response.ok else ()
 
         if not all_hits:
             logger.debug("retrieve: no results for query (ok=%s)", search_response.ok)
@@ -104,19 +119,16 @@ class RetrievalService:
             insufficient_evidence=False,
         )
 
-    def retrieve_memory_first(self, query: str) -> RetrievalResult:
-        """Query both KB and memory collections, merge results, memory-first (D-04, D-06).
-
-        Always queries memory backend first (priority). Queries KB as supplement.
-        Memory notes are listed first. Combined context respects MAX_CONTEXT_CHARS.
-        Keyword fallback on KB backend for proper-noun queries (D-04, D-06).
-        """
-        # Always query KB
-        kb_response = self._backend.search(query)
-
-        # Keyword fallback for proper-noun queries on KB backend (D-04, D-06)
-        kb_keyword_hits = self._keyword_fallback(query, self._backend)
-        kb_all_hits = (kb_response.hits if kb_response.ok else ()) + kb_keyword_hits
+    def retrieve_memory_first(
+        self,
+        query: str,
+        *,
+        search_strategy: str = "hybrid",
+        search_terms: list[str] | None = None,
+    ) -> RetrievalResult:
+        """Query both KB and memory collections, merge results, memory-first."""
+        terms = search_terms or []
+        kb_all_hits = self._search_with_strategy(self._backend, query, search_strategy, terms)
 
         # Query memory collection; treat failures as empty (Pitfall 3)
         mem_hits: tuple[QMDSearchHit, ...] = ()
@@ -163,20 +175,16 @@ class RetrievalService:
             insufficient_evidence=False,
         )
 
-    def retrieve_with_memory(self, query: str) -> RetrievalResult:
-        """Query both KB and memory collections, merge results, vault-first (D-14, D-15).
-
-        Always queries KB. Queries memory backend if available; failures treated as
-        empty results (Pitfall 3). Vault notes are always listed first (D-14).
-        Combined context respects MAX_CONTEXT_CHARS budget (Pitfall 4).
-        Keyword fallback on KB backend for proper-noun queries (D-04, D-06).
-        """
-        # Always query KB
-        kb_response = self._backend.search(query)
-
-        # Keyword fallback for proper-noun queries on KB backend (D-04, D-06)
-        kb_keyword_hits = self._keyword_fallback(query, self._backend)
-        kb_all_hits = (kb_response.hits if kb_response.ok else ()) + kb_keyword_hits
+    def retrieve_with_memory(
+        self,
+        query: str,
+        *,
+        search_strategy: str = "hybrid",
+        search_terms: list[str] | None = None,
+    ) -> RetrievalResult:
+        """Query both KB and memory collections, merge results, vault-first."""
+        terms = search_terms or []
+        kb_all_hits = self._search_with_strategy(self._backend, query, search_strategy, terms)
 
         # Query memory collection; treat failures as empty (Pitfall 3)
         mem_hits: tuple[QMDSearchHit, ...] = ()
@@ -239,12 +247,44 @@ class RetrievalService:
         if not proper_nouns:
             return ()
 
-        response = backend.keyword_search(query)
-        if not response.ok:
-            logger.debug("_keyword_fallback: keyword_search returned ok=False, ignoring")
-            return ()
+        # Search for each proper noun individually and merge results
+        all_hits: list[QMDSearchHit] = []
+        for noun in proper_nouns:
+            response = backend.keyword_search(noun)
+            if response.ok:
+                all_hits.extend(response.hits)
+            else:
+                logger.debug("_keyword_fallback: keyword_search for %r returned ok=False", noun)
 
-        return response.hits
+        return tuple(all_hits)
+
+    def _search_with_strategy(
+        self,
+        backend: QMDSearchBackend,
+        query: str,
+        strategy: str,
+        terms: list[str],
+    ) -> tuple[QMDSearchHit, ...]:
+        """Execute search using the LLM-determined strategy."""
+        all_hits: tuple[QMDSearchHit, ...] = ()
+
+        if strategy == "keyword" and terms:
+            for term in terms:
+                response = backend.keyword_search(term)
+                if response.ok:
+                    all_hits = all_hits + response.hits
+        elif strategy == "both":
+            response = backend.search(query)
+            all_hits = response.hits if response.ok else ()
+            for term in terms:
+                kw_response = backend.keyword_search(term)
+                if kw_response.ok:
+                    all_hits = all_hits + kw_response.hits
+        else:  # hybrid (default)
+            response = backend.search(query)
+            all_hits = response.hits if response.ok else ()
+
+        return all_hits
 
     def _dedup_hits(self, hits: tuple[QMDSearchHit, ...]) -> list[QMDSearchHit]:
         """Deduplicate hits by path, keeping highest score per path (per D-09)."""

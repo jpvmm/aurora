@@ -58,16 +58,53 @@ SYSTEM_PROMPT_GROUNDED = _GROUNDED_BASE.format(date_context=_date_context())
 SYSTEM_PROMPT_GROUNDED_WITH_MEMORY = _GROUNDED_WITH_MEMORY_BASE.format(date_context=_date_context())
 SYSTEM_PROMPT_CHAT = _CHAT_BASE.format(date_context=_date_context())
 
-INTENT_PROMPT = """Classifique a mensagem do usuario em uma categoria:
+INTENT_PROMPT = """Analise a mensagem do usuario e responda em formato estruturado.
+
+1. Classifique a intencao:
 - vault: pergunta sobre notas, documentos, informacoes do vault pessoal
-- memory: pergunta sobre conversas anteriores, o que foi discutido antes, historico de interacoes, memorias de sessoes passadas
+- memory: pergunta sobre conversas anteriores, historico de interacoes, memorias de sessoes passadas
 - chat: conversa geral, tarefa generica, sem relacao com vault nem memorias
 
-Exemplos de memory: "o que conversamos ontem?", "lembra quando discutimos X?", "na ultima sessao falamos sobre...", "o que voce me disse sobre Y?"
-Exemplos de vault: "o que escrevi sobre X?", "minhas notas sobre Y", "resumo das notas de reuniao"
-Exemplos de chat: "explique o que e RAG", "me ajude a escrever um email", "qual a capital da Franca?"
+2. Defina a estrategia de busca (apenas para vault e memory):
+- hybrid: busca semantica (melhor para perguntas conceituais, temas amplos)
+- keyword: busca por palavras-chave exatas (melhor para nomes proprios, termos especificos, datas)
+- both: combinar semantica + palavras-chave (quando ha termos especificos dentro de uma pergunta ampla)
 
-Responda apenas com a palavra: vault, memory ou chat
+3. Extraia os termos de busca mais relevantes (apenas para vault e memory):
+- Para hybrid: reformule como uma boa query de busca
+- Para keyword: extraia os termos exatos que devem ser buscados
+- Para both: forneça ambos
+
+Formato de resposta (3 linhas, sem explicacao):
+intent: vault|memory|chat
+search: hybrid|keyword|both
+terms: <termos de busca separados por virgula>
+
+Exemplos:
+Mensagem: "encontre notas que mencionei a Rosely"
+intent: vault
+search: both
+terms: Rosely, notas mencionei Rosely
+
+Mensagem: "sobre o que conversamos ontem?"
+intent: memory
+search: hybrid
+terms: conversa sessao anterior
+
+Mensagem: "o que escrevi sobre produtividade?"
+intent: vault
+search: hybrid
+terms: produtividade
+
+Mensagem: "quem é o Anderson?"
+intent: vault
+search: keyword
+terms: Anderson
+
+Mensagem: "me ajude a escrever um email"
+intent: chat
+search: none
+terms: none
 
 Mensagem: {message}"""
 

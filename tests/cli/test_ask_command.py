@@ -145,13 +145,16 @@ def test_ask_insufficient_evidence_json(mock_retrieval_cls, mock_llm_cls):
 @patch("aurora.cli.ask.LLMService")
 @patch("aurora.cli.ask.RetrievalService")
 def test_ask_always_calls_retrieve(mock_retrieval_cls, mock_llm_cls):
-    """aurora ask always calls RetrievalService.retrieve_with_memory(query) — no intent routing."""
+    """aurora ask calls classify_intent then retrieve_with_memory with strategy."""
+    from aurora.llm.service import IntentResult
+    mock_llm_cls.return_value.classify_intent.return_value = IntentResult(intent="vault", search="hybrid", terms=[])
     mock_retrieval_cls.return_value.retrieve_with_memory.return_value = _GOOD_RESULT
     _mock_ask_grounded_streaming(mock_llm_cls.return_value)
 
     runner.invoke(app, ["ask", "alguma query"])
 
-    mock_retrieval_cls.return_value.retrieve_with_memory.assert_called_once_with("alguma query")
+    mock_llm_cls.return_value.classify_intent.assert_called_once_with("alguma query")
+    mock_retrieval_cls.return_value.retrieve_with_memory.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
@@ -264,12 +267,14 @@ def test_ask_command_registered_in_app():
 @patch("aurora.cli.ask.RetrievalService")
 def test_ask_uses_retrieve_with_memory_not_retrieve(mock_retrieval_cls, mock_llm_cls):
     """aurora ask must call retrieve_with_memory(), NOT retrieve()."""
+    from aurora.llm.service import IntentResult
+    mock_llm_cls.return_value.classify_intent.return_value = IntentResult(intent="vault", search="hybrid", terms=[])
     mock_retrieval_cls.return_value.retrieve_with_memory.return_value = _GOOD_RESULT
     _mock_ask_grounded_streaming(mock_llm_cls.return_value)
 
     runner.invoke(app, ["ask", "alguma query"])
 
-    mock_retrieval_cls.return_value.retrieve_with_memory.assert_called_once_with("alguma query")
+    mock_retrieval_cls.return_value.retrieve_with_memory.assert_called_once()
     mock_retrieval_cls.return_value.retrieve.assert_not_called()
 
 

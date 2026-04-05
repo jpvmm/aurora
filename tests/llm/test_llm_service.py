@@ -99,31 +99,52 @@ def test_chat_turn_passes_messages_to_stream_fn():
 
 
 def test_classify_intent_returns_vault_when_response_contains_vault():
-    """classify_intent() must return 'vault' when LLM response contains 'vault'."""
-    service = _service(sync_fn=lambda **kwargs: "vault")
-    assert service.classify_intent("What does my note say?") == "vault"
+    """classify_intent() must return IntentResult with intent='vault'."""
+    service = _service(sync_fn=lambda **kwargs: "intent: vault\nsearch: hybrid\nterms: notas")
+    result = service.classify_intent("What does my note say?")
+    assert result.intent == "vault"
 
 
 def test_classify_intent_returns_chat_for_non_vault_response():
-    """classify_intent() must return 'chat' when LLM response contains neither 'vault' nor 'memory'."""
-    service = _service(sync_fn=lambda **kwargs: "chat")
-    assert service.classify_intent("How's the weather?") == "chat"
+    """classify_intent() must return intent='chat' for general queries."""
+    service = _service(sync_fn=lambda **kwargs: "intent: chat\nsearch: none\nterms: none")
+    result = service.classify_intent("How's the weather?")
+    assert result.intent == "chat"
 
 
 def test_classify_intent_returns_memory_when_response_contains_memory():
-    """classify_intent() must return 'memory' when LLM response contains 'memory'."""
-    service = _service(sync_fn=lambda **kwargs: "memory")
-    assert service.classify_intent("o que conversamos ontem?") == "memory"
+    """classify_intent() must return intent='memory' for memory queries."""
+    service = _service(sync_fn=lambda **kwargs: "intent: memory\nsearch: hybrid\nterms: conversa ontem")
+    result = service.classify_intent("o que conversamos ontem?")
+    assert result.intent == "memory"
 
 
 def test_classify_intent_returns_chat_for_garbage_output():
-    """classify_intent() must return 'chat' as fallback for unrecognized LLM output."""
+    """classify_intent() must return intent='chat' as fallback for unrecognized output."""
     service = _service(sync_fn=lambda **kwargs: "asdfgh")
-    assert service.classify_intent("some question") == "chat"
+    result = service.classify_intent("some question")
+    assert result.intent == "chat"
+
+
+def test_classify_intent_parses_search_strategy():
+    """classify_intent() must parse search strategy from structured response."""
+    service = _service(sync_fn=lambda **kwargs: "intent: vault\nsearch: keyword\nterms: Rosely")
+    result = service.classify_intent("find Rosely")
+    assert result.intent == "vault"
+    assert result.search == "keyword"
+    assert result.terms == ["Rosely"]
+
+
+def test_classify_intent_parses_both_strategy():
+    """classify_intent() must parse 'both' search strategy."""
+    service = _service(sync_fn=lambda **kwargs: "intent: vault\nsearch: both\nterms: Rosely, notas mencionei")
+    result = service.classify_intent("find notes mentioning Rosely")
+    assert result.search == "both"
+    assert "Rosely" in result.terms
 
 
 def test_classify_intent_uses_sync_fn_not_streaming():
-    """classify_intent() must call sync_fn, not stream_fn (per anti-pattern in RESEARCH.md)."""
+    """classify_intent() must call sync_fn, not stream_fn."""
     stream_called = []
     sync_called = []
 
@@ -133,7 +154,7 @@ def test_classify_intent_uses_sync_fn_not_streaming():
 
     def _sync_fn(**kwargs):
         sync_called.append(True)
-        return "chat"
+        return "intent: chat\nsearch: none\nterms: none"
 
     service = _service(stream_fn=_stream_fn, sync_fn=_sync_fn)
     service.classify_intent("some message")
@@ -143,25 +164,25 @@ def test_classify_intent_uses_sync_fn_not_streaming():
 
 
 def test_classify_intent_sends_only_latest_message():
-    """classify_intent() must send only the single message to classify (per Pitfall 5, D-14)."""
+    """classify_intent() must send only the single message to classify."""
     captured_messages = []
 
     def _sync_fn(*, messages, **kwargs):
         captured_messages.extend(messages)
-        return "vault"
+        return "intent: vault\nsearch: hybrid\nterms: notas"
 
     service = _service(sync_fn=_sync_fn)
     service.classify_intent("What is in my notes?")
 
-    # Must only have ONE message (the formatted intent prompt), no history
     assert len(captured_messages) == 1
     assert captured_messages[0]["role"] == "user"
 
 
 def test_classify_intent_case_insensitive():
-    """classify_intent() must handle uppercase VAULT in LLM response."""
-    service = _service(sync_fn=lambda **kwargs: "VAULT")
-    assert service.classify_intent("msg") == "vault"
+    """classify_intent() must handle uppercase in LLM response."""
+    service = _service(sync_fn=lambda **kwargs: "intent: VAULT\nsearch: HYBRID\nterms: test")
+    result = service.classify_intent("msg")
+    assert result.intent == "vault"
 
 
 def test_llm_service_resolves_endpoint_from_settings_when_not_provided():
