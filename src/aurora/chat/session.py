@@ -7,10 +7,10 @@ from typing import Callable
 from aurora.chat.history import ChatHistory
 from aurora.llm.prompts import (
     INSUFFICIENT_EVIDENCE_MSG,
-    SYSTEM_PROMPT_CHAT,
-    SYSTEM_PROMPT_GROUNDED,
-    SYSTEM_PROMPT_GROUNDED_WITH_MEMORY,
     build_system_prompt_with_preferences,
+    get_system_prompt_chat,
+    get_system_prompt_grounded,
+    get_system_prompt_grounded_with_memory,
 )
 from aurora.llm.service import LLMService
 from aurora.retrieval.qmd_search import QMDSearchBackend
@@ -141,9 +141,9 @@ class ChatSession:
         # Select prompt based on whether memory notes are present (per D-16)
         has_memory = any(n.source == "memory" for n in result.notes)
         if has_memory:
-            base_prompt = SYSTEM_PROMPT_GROUNDED_WITH_MEMORY
+            base_prompt = get_system_prompt_grounded_with_memory()
         else:
-            base_prompt = SYSTEM_PROMPT_GROUNDED
+            base_prompt = get_system_prompt_grounded()
 
         # Inject preferences if available (Pitfall 5)
         system_prompt = build_system_prompt_with_preferences(base_prompt, self._preferences_path)
@@ -164,7 +164,7 @@ class ChatSession:
         """Handle a chat-intent turn: free-form response using conversation history."""
         # Build messages with SYSTEM_PROMPT_CHAT + recent history + current message
         recent = self._history.get_recent(max_turns=self._max_turns)
-        messages = [{"role": "system", "content": SYSTEM_PROMPT_CHAT}]
+        messages = [{"role": "system", "content": get_system_prompt_chat()}]
         messages.extend(recent)
         messages.append({"role": "user", "content": user_message})
 

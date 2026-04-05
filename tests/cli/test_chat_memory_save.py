@@ -45,20 +45,21 @@ class TestChatCommandMemorySave:
         mock_thread_cls.assert_called_once()
         mock_thread.start.assert_called_once()
 
-    def test_background_thread_is_daemon_true(self) -> None:
-        """Per D-12: daemon=True so user exits immediately."""
+    def test_background_thread_joins_with_timeout(self) -> None:
+        """Thread is joined with timeout so summary has time to complete."""
         mock_session = _make_mock_session(turn_count=2)
 
         with patch("aurora.cli.chat.ChatSession") as mock_cls:
             mock_cls.return_value = mock_session
             with patch("aurora.cli.chat.threading.Thread") as mock_thread_cls:
                 mock_thread = MagicMock()
+                mock_thread.is_alive.return_value = False
                 mock_thread_cls.return_value = mock_thread
                 with patch("builtins.input", side_effect=["sair"]):
                     runner.invoke(app, ["chat"])
 
-        call_kwargs = mock_thread_cls.call_args[1]
-        assert call_kwargs.get("daemon") is True
+        mock_thread.start.assert_called_once()
+        mock_thread.join.assert_called_once_with(timeout=30)
 
     def test_no_thread_when_turn_count_less_than_2(self) -> None:
         """Per D-11: no memory created for sessions with fewer than 2 turns."""

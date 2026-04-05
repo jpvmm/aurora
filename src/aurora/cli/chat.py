@@ -9,8 +9,9 @@ import typer
 from aurora.chat.history import ChatHistory
 from aurora.chat.session import ChatSession
 from aurora.llm.service import LLMService
-from aurora.memory.store import EpisodicMemoryStore
+from aurora.memory.store import EpisodicMemoryStore, MEMORY_COLLECTION, MEMORY_INDEX
 from aurora.memory.summarizer import MemorySummarizer
+from aurora.retrieval.qmd_search import QMDSearchBackend
 
 chat_app = typer.Typer(
     no_args_is_help=False,
@@ -50,7 +51,11 @@ def chat_command(
     def _status(msg: str) -> None:
         typer.echo(msg, err=True)
 
-    session = ChatSession(on_status=_status)
+    memory_backend = QMDSearchBackend(
+        index_name=MEMORY_INDEX,
+        collection_name=MEMORY_COLLECTION,
+    )
+    session = ChatSession(on_status=_status, memory_backend=memory_backend)
     typer.echo("Aurora Chat — digite 'sair' para encerrar.")
     typer.echo("")
 
@@ -73,15 +78,18 @@ def chat_command(
     except KeyboardInterrupt:
         typer.echo("\nAte logo!")
 
-    # Background memory save — after farewell, before returning to user (per D-08, D-12)
+    # Memory save on exit (per D-08, D-12)
     if session.turn_count >= 2:  # D-11: min 2 turns
+        typer.echo("Salvando memoria...", err=True)
         store = EpisodicMemoryStore()
         t = threading.Thread(
             target=_background_save,
             args=(session.get_session_turns(), session.llm, store, session.turn_count),
-            daemon=True,  # D-12: user exits immediately, do NOT join
         )
         t.start()
+        t.join(timeout=30)  # wait up to 30s for summary to complete
+        if t.is_alive():
+            typer.echo("Memoria sendo salva em background...", err=True)
 
 
 __all__ = ["chat_app"]

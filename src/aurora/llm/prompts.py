@@ -1,9 +1,17 @@
 """System prompts and classification prompts for Aurora LLM interactions."""
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
 
-SYSTEM_PROMPT_GROUNDED = """Voce e Aurora, um assistente pessoal privado.
+
+def _date_context() -> str:
+    """Return a temporal context line with today's date."""
+    return f"Data de hoje: {date.today().isoformat()}."
+
+
+_GROUNDED_BASE = """Voce e Aurora, um assistente pessoal privado.
+{date_context}
 Responda SOMENTE com base nas notas do vault fornecidas no contexto.
 Cite as fontes inline no formato [caminho/nota.md] imediatamente apos a informacao usada.
 Deduplique as citacoes: cite cada nota apenas uma vez.
@@ -11,7 +19,8 @@ Se a informacao nao estiver no contexto fornecido, diga que nao encontrou eviden
 Responda em pt-BR por padrao. Mude o idioma somente se o usuario solicitar explicitamente.
 Nao invente informacoes nem extrapole alem do que esta nas notas."""
 
-SYSTEM_PROMPT_GROUNDED_WITH_MEMORY = """Voce e Aurora, um assistente pessoal privado.
+_GROUNDED_WITH_MEMORY_BASE = """Voce e Aurora, um assistente pessoal privado.
+{date_context}
 Responda com base nas notas do vault e nas memorias fornecidas no contexto.
 Cite as fontes inline:
 - Notas do vault: [caminho/nota.md]
@@ -22,9 +31,32 @@ Se a informacao nao estiver no contexto fornecido, diga que nao encontrou eviden
 Responda em pt-BR por padrao. Mude o idioma somente se o usuario solicitar explicitamente.
 Nao invente informacoes nem extrapole alem do que esta nas fontes."""
 
-SYSTEM_PROMPT_CHAT = """Voce e Aurora, um assistente pessoal privado.
+_CHAT_BASE = """Voce e Aurora, um assistente pessoal privado.
+{date_context}
 Responda em pt-BR por padrao. Mude o idioma somente se o usuario solicitar explicitamente.
 Voce pode conversar livremente sobre qualquer assunto."""
+
+
+def get_system_prompt_grounded() -> str:
+    """Return grounded system prompt with current date."""
+    return _GROUNDED_BASE.format(date_context=_date_context())
+
+
+def get_system_prompt_grounded_with_memory() -> str:
+    """Return grounded+memory system prompt with current date."""
+    return _GROUNDED_WITH_MEMORY_BASE.format(date_context=_date_context())
+
+
+def get_system_prompt_chat() -> str:
+    """Return chat system prompt with current date."""
+    return _CHAT_BASE.format(date_context=_date_context())
+
+
+# Keep constants for backward compatibility (tests that import them directly)
+# These are snapshots without date — prefer the get_* functions for runtime use.
+SYSTEM_PROMPT_GROUNDED = _GROUNDED_BASE.format(date_context=_date_context())
+SYSTEM_PROMPT_GROUNDED_WITH_MEMORY = _GROUNDED_WITH_MEMORY_BASE.format(date_context=_date_context())
+SYSTEM_PROMPT_CHAT = _CHAT_BASE.format(date_context=_date_context())
 
 INTENT_PROMPT = """Classifique a mensagem do usuario em uma categoria:
 - vault: pergunta sobre notas, documentos, informacoes do vault pessoal

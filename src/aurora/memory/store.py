@@ -1,6 +1,8 @@
 """Episodic memory file store for Aurora long-term memory."""
 from __future__ import annotations
 
+import logging
+import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -8,8 +10,10 @@ import yaml
 
 from aurora.runtime.paths import get_memory_dir
 
+logger = logging.getLogger(__name__)
 
 MEMORY_COLLECTION = "aurora-memory"
+MEMORY_INDEX = "aurora-kb"
 
 
 class EpisodicMemoryStore:
@@ -50,6 +54,8 @@ class EpisodicMemoryStore:
         frontmatter_text = yaml.dump(frontmatter, allow_unicode=True, default_flow_style=False)
         content = f"---\n{frontmatter_text}---\n\n{summary}\n"
         path.write_text(content, encoding="utf-8")
+        self._ensure_qmd_collection()
+        self._qmd_update()
         return path
 
     def list_memories(self) -> list[dict]:
@@ -112,3 +118,32 @@ class EpisodicMemoryStore:
             return yaml.safe_load(parts[1]) or {}
         except Exception:
             return {}
+
+    def _ensure_qmd_collection(self) -> None:
+        """Register memory directory as a QMD collection if not already registered."""
+        try:
+            result = subprocess.run(
+                ("qmd", "--index", MEMORY_INDEX, "collection", "add",
+                 str(self._memory_dir), "--name", MEMORY_COLLECTION, "--mask", "**/*.md"),
+                check=False, capture_output=True, text=True,
+            )
+            combined = f"{result.stdout or ''} {result.stderr or ''}".lower()
+            if result.returncode == 0 or "already exists" in combined:
+                return
+            logger.warning("QMD collection bootstrap failed: %s", combined.strip())
+        except FileNotFoundError:
+            logger.warning("qmd not found — memory files saved but not indexed")
+
+    def _qmd_update(self) -> None:
+        """Run qmd update + embed to index and vectorize new memory files."""
+        try:
+            subprocess.run(
+                ("qmd", "--index", MEMORY_INDEX, "update"),
+                check=False, capture_output=True, text=True,
+            )
+            subprocess.run(
+                ("qmd", "--index", MEMORY_INDEX, "embed"),
+                check=False, capture_output=True, text=True,
+            )
+        except FileNotFoundError:
+            pass

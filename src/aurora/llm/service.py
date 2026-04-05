@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Callable
 
-from aurora.llm.prompts import INTENT_PROMPT, SUMMARIZE_SESSION_PROMPT, SYSTEM_PROMPT_GROUNDED
+from aurora.llm.prompts import INTENT_PROMPT, SUMMARIZE_SESSION_PROMPT, get_system_prompt_grounded
 from aurora.llm.streaming import chat_completion_sync, stream_chat_completions
 from aurora.runtime.settings import RuntimeSettings, load_settings
 
@@ -45,7 +45,7 @@ class LLMService:
         Returns full response text.
         """
         messages = [
-            {"role": "system", "content": SYSTEM_PROMPT_GROUNDED},
+            {"role": "system", "content": get_system_prompt_grounded()},
             {
                 "role": "user",
                 "content": f"Contexto do vault:\n{context_text}\n\nPergunta: {query}",
