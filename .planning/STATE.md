@@ -45,6 +45,7 @@ Plan: Not started
 - Phase 01.1 inserted after Phase 1: llama.cpp server lifecycle via CLI (auto start/stop + health/status) (URGENT)
 - Phase 02.1 inserted after Phase 2: the aurora kb suit needs working. it need to be easier to configure update/delete collections and ir need to generate embeddings automatically without qmd. (URGENT)
 - Phase 04.1 inserted after Phase 4: Fix memory pipeline — refine memory retrieval, intent classification, QMD embedding, and memory-vault distinction (URGENT)
+- Phase 04.2 inserted after Phase 4: Fix retrieval quality — increase top-K, add keyword fallback search, carry forward prior turn context (URGENT)
 
 ### Decisions
 
