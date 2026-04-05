@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Executing Phase 04.2
-last_updated: "2026-04-05T19:27:36.157Z"
+last_updated: "2026-04-05T19:38:36.000Z"
 progress:
   total_phases: 10
   completed_phases: 7
   total_plans: 29
-  completed_plans: 27
+  completed_plans: 28
 ---
 
 # STATE: Aurora
@@ -22,13 +22,13 @@ progress:
 ## Current Position
 
 Phase: 04.2 (fix-retrieval-quality) — EXECUTING
-Plan: 1 of 2
+Plan: 2 of 2 complete
 
-- **Current phase**: 04.1 - Fix Memory Pipeline (complete)
-- **Current plan**: Phase 04.1 complete (2/2 plans executed)
-- **Status**: Phase 04.1 complete
-- **Overall progress**: 27/27 plans complete
-- **Progress bar**: [███████████] 100%
+- **Current phase**: 04.2 - Fix Retrieval Quality
+- **Current plan**: Phase 04.2 plan 02 complete (2/2 plans executed)
+- **Status**: Phase 04.2 complete
+- **Overall progress**: 28/29 plans complete
+- **Progress bar**: [███████████] 97%
 
 ## Performance Metrics
 
@@ -124,6 +124,10 @@ Plan: 1 of 2
 - [Phase 04.1-02]: retrieve_memory_first mirrors retrieve_with_memory but reverses ordering — memory notes before vault notes
 - [Phase 04.1-02]: aurora ask always creates QMDSearchBackend for memory and uses retrieve_with_memory; chat_turn used when memory notes present, ask_grounded for vault-only results
 - [Phase 04.1-02]: _handle_memory_turn uses get_system_prompt_memory_first with temporal emphasis on conversas anteriores
+- [Phase 04.2-02]: Apply carry-forward BEFORE insufficient_evidence check so prior notes can rescue a weak follow-up query
+- [Phase 04.2-02]: Cap _last_retrieved_paths at 3 on store and cap missing_paths slice at 3 on application
+- [Phase 04.2-02]: Clear carry-forward on chat intent turns (D-11) to prevent stale notes leaking into unrelated turns
+- [Phase 04.2-02]: Skip silently when fetch returns None — no error, no partial state mutation
 
 ### TODOs
 
@@ -135,10 +139,10 @@ Plan: 1 of 2
 
 ## Session Continuity
 
-- **Last action**: Executed `04.1-02-PLAN.md` and created `04.1-02-SUMMARY.md`.
-- **Next command**: Phase 04.1 complete. All planned work done.
-- **If resuming later**: Open `.planning/phases/04.1-fix-memory-pipeline-refine-memory-retrieval-intent-classification-qmd-embedding-and-memory-vault-distinction/04.1-02-SUMMARY.md`.
+- **Last action**: Executed `04.2-02-PLAN.md` and created `04.2-02-SUMMARY.md`.
+- **Next command**: Phase 04.2 complete. All planned work done.
+- **If resuming later**: Open `.planning/phases/04.2-fix-retrieval-quality-increase-top-k-add-keyword-fallback-search-carry-forward-prior-turn-context/04.2-02-SUMMARY.md`.
 
 ---
 *Initialized: 2026-03-01*
-*Last updated: 2026-04-05 after executing phase 04.1 plan 02*
+*Last updated: 2026-04-05 after executing phase 04.2 plan 02*

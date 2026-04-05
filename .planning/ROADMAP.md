@@ -22,7 +22,7 @@
 | 3. Grounded Retrieval Experience | 3/3 | In progress | - |
 | 4. Long-Term Memory Fusion | 3/3 | Complete   | 2026-04-04 |
 | 4.1. Fix Memory Pipeline | 2/2 | Complete | 2026-04-05 |
-| 4.2. Fix Retrieval Quality | 0/2 | Not started | - |
+| 4.2. Fix Retrieval Quality | 2/2 | Complete | 2026-04-05 |
 | 5. Operational Command Surface | 0/1 | Not started | - |
 | 6. Runtime Profiles and Safe Observability | 0/1 | Not started | - |
 
@@ -139,11 +139,11 @@ Plans:
 **Goal:** Improve retrieval quality so Aurora finds relevant notes for name queries, date-range queries, and follow-up questions through higher top-K, keyword BM25 fallback for proper nouns, and session context carry-forward.
 **Requirements**: RET-01, RET-03
 **Depends on:** Phase 4.1
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
-- [ ] `04.2-01-PLAN.md` — Increase top-K to 15, widen validator to 5-30, double MAX_CONTEXT_CHARS to 24K, add keyword_search to QMDSearchBackend, wire keyword fallback into RetrievalService.
-- [ ] `04.2-02-PLAN.md` — Add session context carry-forward to ChatSession for vault/memory follow-up turns.
+- [x] `04.2-01-PLAN.md` — Increase top-K to 15, widen validator to 5-30, double MAX_CONTEXT_CHARS to 24K, add keyword_search to QMDSearchBackend, wire keyword fallback into RetrievalService. (`04.2-01-SUMMARY.md`, 2026-04-05)
+- [x] `04.2-02-PLAN.md` — Add session context carry-forward to ChatSession for vault/memory follow-up turns. (`04.2-02-SUMMARY.md`, 2026-04-05)
 
 ### Phase 5: Operational Command Surface
 **Goal**: User can operate Aurora end-to-end through explicit commands and built-in diagnostics.
@@ -198,4 +198,4 @@ Orphans: 0
 Duplicates: 0
 
 ---
-*Last updated: 2026-04-05 after planning phase 04.2*
+*Last updated: 2026-04-05 after executing phase 04.2 plan 02*
