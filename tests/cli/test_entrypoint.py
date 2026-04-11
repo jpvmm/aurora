@@ -90,9 +90,20 @@ def test_config_group_shows_guidance_without_placeholder_message() -> None:
     assert "ainda nao implementado" not in result.output.lower()
 
 
-def test_doctor_group_runs_runtime_checks_without_placeholder_message(monkeypatch) -> None:
+def test_doctor_group_runs_runtime_checks_without_placeholder_message(
+    tmp_path, monkeypatch
+) -> None:
+    # Isolated config dir so load_settings sees a fresh RuntimeSettings
+    monkeypatch.setenv("AURORA_CONFIG_DIR", str(tmp_path / "config"))
+
     app_module = importlib.import_module("aurora.cli.app")
     doctor_module = importlib.import_module("aurora.cli.doctor")
+
+    from aurora.kb.manifest import KBManifest, KBManifestNoteRecord
+    from aurora.runtime.settings import RuntimeSettings, save_settings
+
+    save_settings(RuntimeSettings())
+
     monkeypatch.setattr(
         doctor_module,
         "validate_runtime",
@@ -102,9 +113,64 @@ def test_doctor_group_runs_runtime_checks_without_placeholder_message(monkeypatc
             available_models=("Qwen3-8B-Q8_0",),
         ),
     )
+
+    # Plan 05-02 extended doctor with additional checks — keep this test green by
+    # monkeypatching them to the all-passing shape.
+    import types as _types
+
+    monkeypatch.setattr(
+        doctor_module.shutil, "which", lambda name: "/usr/bin/qmd"
+    )
+    monkeypatch.setattr(
+        doctor_module.subprocess,
+        "run",
+        lambda *args, **kwargs: _types.SimpleNamespace(
+            returncode=0,
+            stdout="aurora-kb-managed\naurora-memory",
+            stderr="",
+        ),
+    )
+    monkeypatch.setattr(
+        doctor_module,
+        "load_kb_manifest",
+        lambda: KBManifest(
+            vault_root="/tmp/vault",
+            notes={
+                "note.md": KBManifestNoteRecord(
+                    size=10,
+                    mtime_ns=1,
+                    sha256=None,
+                    indexed_at="2026-04-11T00:00:00Z",
+                    cleaned_size=10,
+                    templater_tags_removed=0,
+                )
+            },
+        ),
+    )
+    monkeypatch.setattr(
+        doctor_module.shutil,
+        "disk_usage",
+        lambda _path: _types.SimpleNamespace(
+            total=100 * 1024 * 1024 * 1024,
+            used=1 * 1024 * 1024 * 1024,
+            free=50 * 1024 * 1024 * 1024,
+        ),
+    )
+
+    import aurora.memory.store as _memory_store
+
+    class _EmptyMemoryStore:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        def list_memories(self) -> list[dict]:
+            return []
+
+    monkeypatch.setattr(_memory_store, "EpisodicMemoryStore", _EmptyMemoryStore)
+
     result = RUNNER.invoke(app_module.app, ["doctor"], prog_name="aurora")
 
-    assert result.exit_code == 0
+    assert result.exit_code == 0, result.output
     assert "runtime local pronto" in result.output.lower()
     assert "ainda nao implementado" not in result.output.lower()
 
