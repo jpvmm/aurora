@@ -110,11 +110,21 @@ def run_doctor_checks(*, json_output: bool = False) -> None:
 
     # New full-stack checks (per D-08)
     _append_if_issue(issues, _check_python_version())
-    _append_if_issue(issues, _check_qmd_binary())
-    _append_if_issue(issues, _check_qmd_version())
+
+    # QMD check sequence — downstream checks (_check_kb_embeddings,
+    # _check_memory_index) short-circuit if QMD is missing OR broken, so a
+    # single root cause is reported once instead of three near-identical
+    # diagnostics.
+    qmd_missing = _check_qmd_binary()
+    _append_if_issue(issues, qmd_missing)
+    qmd_broken = None if qmd_missing is not None else _check_qmd_version()
+    _append_if_issue(issues, qmd_broken)
+    qmd_ok = qmd_missing is None and qmd_broken is None
+
     _append_if_issue(issues, _check_kb_collection(settings))
-    _append_if_issue(issues, _check_kb_embeddings(settings))
-    _append_if_issue(issues, _check_memory_index(settings))
+    if qmd_ok:
+        _append_if_issue(issues, _check_kb_embeddings(settings))
+        _append_if_issue(issues, _check_memory_index(settings))
     _append_if_issue(issues, _check_disk_space())
     issues.extend(_check_required_packages())
 
