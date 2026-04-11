@@ -1,4 +1,101 @@
+# =============================================================================
+# Aurora .gitignore
+# =============================================================================
+# Grouped by category. Add new patterns to the appropriate section.
+
+# --- Secrets & credentials (NEVER commit these) -----------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+*.der
+id_rsa
+id_ed25519
+credentials
+credentials.json
+secrets.json
+*_token
+*_secret
+.aws/
+.ssh/
+
+# --- Aurora runtime state (lives in user config dir, should never be here) --
+# Anchored to repo root so .claude/settings.json (GSD hook config) is unaffected.
+/settings.json
+/aurora-settings.json
+/server-state.json
+/server.lock
+/kb.lock
+/kb-manifest.json
+/kb-state.json
+/kb-qmd-corpus/
+/memory/
+/preferences.md
+
+# --- Local models -----------------------------------------------------------
 *.gguf
-.DS_Store
+*.safetensors
+*.bin
+models/
+
+# --- Python -----------------------------------------------------------------
 __pycache__/
 *.py[cod]
+*.egg-info/
+*.egg
+build/
+dist/
+wheels/
+.venv/
+venv/
+env/
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+
+# --- Test & coverage --------------------------------------------------------
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.pytest_cache/
+.tox/
+.nox/
+.hypothesis/
+
+# --- Linters & type-checkers ------------------------------------------------
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.pytype/
+
+# --- IDE / editors ----------------------------------------------------------
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.spyderproject
+.spyproject
+
+# --- OS metadata ------------------------------------------------------------
+.DS_Store
+._*
+Thumbs.db
+Desktop.ini
+
+# --- Logs & temp ------------------------------------------------------------
+*.log
+logs/
+tmp/
+temp/
+
+# --- GSD workspace artifacts ------------------------------------------------
+.claude/worktrees/
