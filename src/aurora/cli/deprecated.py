@@ -5,9 +5,12 @@ functions used by the canonical `aurora config <namespace>` surface. This keeps 
 invocations working (`aurora kb ...`, `aurora model ...`, `aurora memory ...`) while
 guiding the user toward the new layout.
 
-Per Pitfall 1: these typers do NOT set `invoke_without_command=True` so Typer's help
-machinery keeps working at the parent level (e.g. `aurora kb --help`) without firing
-the callback for help-only invocations.
+Per Pitfall 1: `no_args_is_help=True` ensures that `aurora kb` with no subcommand
+prints the Typer help without running the deprecation callback. The callback is
+intentionally invoked on real subcommand invocations (e.g. `aurora kb ingest ...`)
+so the deprecation warning appears on the output paths users actually exercise.
+(Note: `--help` is an eager Click option and short-circuits the group callback
+regardless of `invoke_without_command`, so that setting is orthogonal here.)
 """
 from __future__ import annotations
 
