@@ -125,7 +125,9 @@ def _run_status(*, json_output: bool) -> None:
     # 5. Memory state
     # ------------------------------------------------------------------
     memory_count = 0
-    last_session: str | None = None
+    # Named `last_session_date` — the underlying source key is `date`, which is a
+    # human-readable date string (not a session identifier). See REVIEW IN-04.
+    last_session_date: str | None = None
     try:
         from aurora.memory.store import EpisodicMemoryStore
 
@@ -133,10 +135,10 @@ def _run_status(*, json_output: bool) -> None:
         memory_count = len(memories)
         if memories:
             tail = memories[-1]
-            last_session = tail.get("date") if isinstance(tail, dict) else None
+            last_session_date = tail.get("date") if isinstance(tail, dict) else None
     except Exception:
         memory_count = 0
-        last_session = None
+        last_session_date = None
 
     # ------------------------------------------------------------------
     # Output
@@ -159,7 +161,7 @@ def _run_status(*, json_output: bool) -> None:
             },
             "memory": {
                 "memory_count": memory_count,
-                "last_session": last_session,
+                "last_session_date": last_session_date,
             },
             "config": {
                 "vault_path": vault_path,
@@ -191,7 +193,7 @@ def _run_status(*, json_output: bool) -> None:
     typer.echo("")
     typer.echo("Memoria:")
     typer.echo(f"  memorias: {memory_count}")
-    typer.echo(f"  ultima sessao: {last_session or 'nenhuma'}")
+    typer.echo(f"  ultima sessao: {last_session_date or 'nenhuma'}")
     typer.echo("")
     typer.echo("Configuracao:")
     typer.echo(f"  vault: {vault_path or '(nao configurado)'}")
