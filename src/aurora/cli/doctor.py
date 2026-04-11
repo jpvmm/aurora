@@ -25,7 +25,7 @@ from aurora.privacy.policy import Phase1PolicyError
 from aurora.runtime.errors import RuntimeDiagnosticError
 from aurora.runtime.llama_client import validate_runtime
 from aurora.runtime.paths import get_settings_path
-from aurora.runtime.settings import RuntimeSettings, load_settings
+from aurora.runtime.settings import RuntimeSettings, RuntimeSettingsLoadError, load_settings
 
 
 @dataclass(frozen=True)
@@ -59,40 +59,26 @@ def run_doctor_checks(*, json_output: bool = False) -> None:
     try:
         settings = load_settings()
     except Phase1PolicyError:
-        policy_issue = DoctorIssue(
+        _emit_load_failure(
             category="policy_mismatch",
             message="Endpoint configurado viola a politica local-only.",
             commands=(
                 "aurora model set --endpoint http://127.0.0.1:8080",
                 "aurora config show",
             ),
+            json_output=json_output,
         )
-        if json_output:
-            # Emit with a minimal settings snapshot because load_settings failed
-            typer.echo(
-                json.dumps(
-                    {
-                        "ok": False,
-                        "checks": {
-                            "endpoint": "",
-                            "model": "",
-                            "local_only": True,
-                            "telemetry_enabled": False,
-                        },
-                        "issues": [
-                            {
-                                "category": policy_issue.category,
-                                "message": policy_issue.message,
-                                "recovery_commands": list(policy_issue.commands),
-                            }
-                        ],
-                    },
-                    ensure_ascii=False,
-                    indent=2,
-                )
-            )
-            raise typer.Exit(code=1)
-        _print_issues([policy_issue])
+        raise typer.Exit(code=1)
+    except RuntimeSettingsLoadError as error:
+        _emit_load_failure(
+            category="settings_load_error",
+            message=f"Nao foi possivel carregar as configuracoes: {error}.",
+            commands=(
+                "aurora config setup",
+                "aurora config show",
+            ),
+            json_output=json_output,
+        )
         raise typer.Exit(code=1)
 
     issues: list[DoctorIssue] = []
@@ -150,6 +136,47 @@ def run_doctor_checks(*, json_output: bool = False) -> None:
 
     typer.echo("")
     typer.echo("Runtime local pronto. Nenhum problema encontrado.")
+
+
+def _emit_load_failure(
+    *,
+    category: str,
+    message: str,
+    commands: tuple[str, ...],
+    json_output: bool,
+) -> None:
+    """Render a single-issue failure report when ``load_settings`` raises.
+
+    Shared between the ``Phase1PolicyError`` and ``RuntimeSettingsLoadError``
+    handlers so both failure modes emit the same shape (text or JSON).
+    """
+    issue = DoctorIssue(category=category, message=message, commands=commands)
+    if json_output:
+        # Minimal settings snapshot because load_settings failed.
+        typer.echo(
+            json.dumps(
+                {
+                    "ok": False,
+                    "checks": {
+                        "endpoint": "",
+                        "model": "",
+                        "local_only": True,
+                        "telemetry_enabled": False,
+                    },
+                    "issues": [
+                        {
+                            "category": issue.category,
+                            "message": issue.message,
+                            "recovery_commands": list(issue.commands),
+                        }
+                    ],
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return
+    _print_issues([issue])
 
 
 # ---------------------------------------------------------------------------
@@ -397,6 +424,7 @@ def _print_issues(issues: list[DoctorIssue]) -> None:
         "disk_space_low": "Sistema",
         "python_version": "Sistema",
         "package_missing": "Dependencias",
+        "settings_load_error": "Configuracao",
     }
     printed_groups: set[str] = set()
 
