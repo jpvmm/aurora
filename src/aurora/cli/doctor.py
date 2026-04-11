@@ -358,7 +358,17 @@ def _check_disk_space() -> DoctorIssue | None:
 
 
 def _check_required_packages() -> list[DoctorIssue]:
-    required = ("typer", "pydantic", "pydantic-settings", "pyyaml", "httpx")
+    # Mirrors pyproject.toml [project.dependencies]. Do NOT list transitive deps
+    # (e.g. httpx, pydantic) — they may be absent on minimal installs even when
+    # Aurora is healthy, producing false-positive "missing package" diagnostics.
+    required = (
+        "typer",
+        "pydantic-settings",
+        "pyyaml",
+        "huggingface-hub",
+        "platformdirs",
+        "qmd",
+    )
     missing: list[DoctorIssue] = []
     for name in required:
         try:
