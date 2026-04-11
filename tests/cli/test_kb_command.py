@@ -163,7 +163,7 @@ def test_ingest_command_delegates_to_service_and_renders_text_progress(monkeypat
     fake_service = FakeKBService()
     monkeypatch.setattr(kb_module, "KBService", lambda: fake_service)
 
-    result = RUNNER.invoke(app_module.app, ["kb", "ingest", "/tmp/vault"], prog_name="aurora")
+    result = RUNNER.invoke(app_module.app, ["config", "kb", "ingest", "/tmp/vault"], prog_name="aurora")
 
     assert result.exit_code == 0
     assert fake_service.ingest_calls == [{"vault_path": "/tmp/vault", "dry_run": False}]
@@ -181,7 +181,7 @@ def test_update_json_output_is_stable_and_supports_verify_hash(monkeypatch) -> N
 
     result = RUNNER.invoke(
         app_module.app,
-        ["kb", "update", "--verify-hash", "--json"],
+        ["config", "kb", "update", "--verify-hash", "--json"],
         prog_name="aurora",
     )
 
@@ -206,7 +206,7 @@ def test_delete_command_is_index_only_and_uses_service(monkeypatch) -> None:
     fake_service = FakeKBService()
     monkeypatch.setattr(kb_module, "KBService", lambda: fake_service)
 
-    result = RUNNER.invoke(app_module.app, ["kb", "delete", "--yes"], prog_name="aurora")
+    result = RUNNER.invoke(app_module.app, ["config", "kb", "delete", "--yes"], prog_name="aurora")
 
     assert result.exit_code == 0
     assert fake_service.delete_calls == [{}]
@@ -236,7 +236,7 @@ def test_rebuild_error_output_includes_path_category_and_recovery_without_conten
 
     monkeypatch.setattr(kb_module, "KBService", RaisingService)
 
-    result = RUNNER.invoke(app_module.app, ["kb", "rebuild"], prog_name="aurora")
+    result = RUNNER.invoke(app_module.app, ["config", "kb", "rebuild"], prog_name="aurora")
 
     assert result.exit_code == 1
     assert "notes/private.md" in result.output
@@ -264,7 +264,7 @@ def test_update_reports_privacy_safe_read_errors_without_forcing_delete(tmp_path
     KBService().run_ingest(vault_path=str(vault_path), dry_run=False)
     note_path.write_bytes(b"\xff\xfe\xfa")
 
-    result = RUNNER.invoke(app_module.app, ["kb", "update"], prog_name="aurora")
+    result = RUNNER.invoke(app_module.app, ["config", "kb", "update"], prog_name="aurora")
 
     assert result.exit_code == 0
     output = result.output.lower()
@@ -278,10 +278,10 @@ def test_update_reports_privacy_safe_read_errors_without_forcing_delete(tmp_path
 @pytest.mark.parametrize(
     ("command", "expected_operation"),
     [
-        (["kb", "ingest", "/tmp/vault"], "ingest"),
-        (["kb", "update"], "update"),
-        (["kb", "delete", "--yes"], "delete"),
-        (["kb", "rebuild"], "rebuild"),
+        (["config", "kb", "ingest", "/tmp/vault"], "ingest"),
+        (["config", "kb", "update"], "update"),
+        (["config", "kb", "delete", "--yes"], "delete"),
+        (["config", "kb", "rebuild"], "rebuild"),
     ],
 )
 def test_kb_readability_progress_stage_order_and_summary_tokens_for_each_operation(
@@ -315,10 +315,10 @@ def test_kb_readability_progress_stage_order_and_summary_tokens_for_each_operati
 @pytest.mark.parametrize(
     ("command", "expected_operation"),
     [
-        (["kb", "ingest", "/tmp/vault", "--json"], "ingest"),
-        (["kb", "update", "--json"], "update"),
-        (["kb", "delete", "--json", "--yes"], "delete"),
-        (["kb", "rebuild", "--json"], "rebuild"),
+        (["config", "kb", "ingest", "/tmp/vault", "--json"], "ingest"),
+        (["config", "kb", "update", "--json"], "update"),
+        (["config", "kb", "delete", "--json", "--yes"], "delete"),
+        (["config", "kb", "rebuild", "--json"], "rebuild"),
     ],
 )
 def test_kb_json_summary_readability_contract_excludes_transient_progress_lines(
@@ -358,7 +358,7 @@ def test_kb_config_show_displays_detailed_settings(tmp_path: Path, monkeypatch) 
         )
     )
 
-    result = RUNNER.invoke(app_module.app, ["kb", "config", "show"], prog_name="aurora")
+    result = RUNNER.invoke(app_module.app, ["config", "kb", "config", "show"], prog_name="aurora")
 
     assert result.exit_code == 0
     output = result.output.lower()
@@ -414,8 +414,8 @@ def test_kb_help_and_root_help_expose_kb_config_surface(tmp_path: Path, monkeypa
     monkeypatch.setenv("AURORA_CONFIG_DIR", str(tmp_path / "config"))
     save_settings(RuntimeSettings())
 
-    kb_help = RUNNER.invoke(app_module.app, ["kb", "--help"], prog_name="aurora")
-    kb_config_help = RUNNER.invoke(app_module.app, ["kb", "config", "--help"], prog_name="aurora")
+    kb_help = RUNNER.invoke(app_module.app, ["config", "kb", "--help"], prog_name="aurora")
+    kb_config_help = RUNNER.invoke(app_module.app, ["config", "kb", "config", "--help"], prog_name="aurora")
     root_help = RUNNER.invoke(app_module.app, ["--help"], prog_name="aurora")
 
     assert kb_help.exit_code == 0
@@ -430,12 +430,12 @@ def test_kb_help_and_root_help_expose_kb_config_surface(tmp_path: Path, monkeypa
 @pytest.mark.parametrize(
     ("command", "call_attr"),
     [
-        (["kb", "update", "--index", "tmp-index", "--collection", "tmp-collection"], "update_calls"),
+        (["config", "kb", "update", "--index", "tmp-index", "--collection", "tmp-collection"], "update_calls"),
         (
-            ["kb", "delete", "--yes", "--index", "tmp-index", "--collection", "tmp-collection"],
+            ["config", "kb", "delete", "--yes", "--index", "tmp-index", "--collection", "tmp-collection"],
             "delete_calls",
         ),
-        (["kb", "rebuild", "--index", "tmp-index", "--collection", "tmp-collection"], "rebuild_calls"),
+        (["config", "kb", "rebuild", "--index", "tmp-index", "--collection", "tmp-collection"], "rebuild_calls"),
     ],
 )
 def test_kb_command_target_overrides_are_command_scoped(
@@ -481,7 +481,7 @@ def test_kb_delete_requires_yes_when_non_interactive(tmp_path: Path, monkeypatch
     monkeypatch.setattr(kb_module, "KBService", lambda: fake_service)
     monkeypatch.setattr(kb_module, "_is_interactive_terminal", lambda: False)
 
-    result = RUNNER.invoke(app_module.app, ["kb", "delete"], prog_name="aurora")
+    result = RUNNER.invoke(app_module.app, ["config", "kb", "delete"], prog_name="aurora")
 
     assert result.exit_code == 1
     output = result.output.lower()
@@ -499,13 +499,13 @@ def test_kb_delete_interactive_confirmation_controls_execution(tmp_path: Path, m
 
     decline_service = FakeKBService()
     monkeypatch.setattr(kb_module, "KBService", lambda: decline_service)
-    decline = RUNNER.invoke(app_module.app, ["kb", "delete"], input="n\n", prog_name="aurora")
+    decline = RUNNER.invoke(app_module.app, ["config", "kb", "delete"], input="n\n", prog_name="aurora")
     assert decline.exit_code == 1
     assert decline_service.delete_calls == []
 
     confirm_service = FakeKBService()
     monkeypatch.setattr(kb_module, "KBService", lambda: confirm_service)
-    confirm = RUNNER.invoke(app_module.app, ["kb", "delete"], input="y\n", prog_name="aurora")
+    confirm = RUNNER.invoke(app_module.app, ["config", "kb", "delete"], input="y\n", prog_name="aurora")
     assert confirm.exit_code == 0
     assert confirm_service.delete_calls == [{}]
 
@@ -528,7 +528,7 @@ def test_update_text_output_reports_embed_partial_failure_warning_and_exit_polic
             )
 
     monkeypatch.setattr(kb_module, "KBService", lambda: PartialFailureService())
-    result = RUNNER.invoke(app_module.app, ["kb", "update"], prog_name="aurora")
+    result = RUNNER.invoke(app_module.app, ["config", "kb", "update"], prog_name="aurora")
 
     assert result.exit_code == 2
     output = result.output.lower()
@@ -549,7 +549,7 @@ def test_update_text_output_reports_embed_success(monkeypatch) -> None:
             )
 
     monkeypatch.setattr(kb_module, "KBService", lambda: EmbedSuccessService())
-    result = RUNNER.invoke(app_module.app, ["kb", "update"], prog_name="aurora")
+    result = RUNNER.invoke(app_module.app, ["config", "kb", "update"], prog_name="aurora")
 
     assert result.exit_code == 0
     assert "embedding: atualizado" in result.output.lower()
@@ -573,7 +573,7 @@ def test_update_json_output_includes_embedding_stage_fields(monkeypatch) -> None
             )
 
     monkeypatch.setattr(kb_module, "KBService", lambda: JsonEmbedService())
-    result = RUNNER.invoke(app_module.app, ["kb", "update", "--json"], prog_name="aurora")
+    result = RUNNER.invoke(app_module.app, ["config", "kb", "update", "--json"], prog_name="aurora")
 
     assert result.exit_code == 2
     payload = json.loads(result.output)
@@ -622,7 +622,7 @@ def test_kb_scheduler_status_json_contract(monkeypatch) -> None:
             return expected_status
 
     monkeypatch.setattr(kb_module, "KBSchedulerService", FakeSchedulerService)
-    result = RUNNER.invoke(app_module.app, ["kb", "scheduler", "status", "--json"], prog_name="aurora")
+    result = RUNNER.invoke(app_module.app, ["config", "kb", "scheduler", "status", "--json"], prog_name="aurora")
 
     assert result.exit_code == 0
     payload = json.loads(result.output)
@@ -674,11 +674,11 @@ def test_kb_scheduler_enable_disable_status_text(monkeypatch) -> None:
 
     enabled = RUNNER.invoke(
         app_module.app,
-        ["kb", "scheduler", "enable", "--hour", "7"],
+        ["config", "kb", "scheduler", "enable", "--hour", "7"],
         prog_name="aurora",
     )
-    disabled = RUNNER.invoke(app_module.app, ["kb", "scheduler", "disable"], prog_name="aurora")
-    status = RUNNER.invoke(app_module.app, ["kb", "scheduler", "status"], prog_name="aurora")
+    disabled = RUNNER.invoke(app_module.app, ["config", "kb", "scheduler", "disable"], prog_name="aurora")
+    status = RUNNER.invoke(app_module.app, ["config", "kb", "scheduler", "status"], prog_name="aurora")
 
     assert enabled.exit_code == 0
     assert disabled.exit_code == 0
@@ -701,7 +701,7 @@ def test_kb_scheduler_command_surfaces_actionable_recovery(monkeypatch) -> None:
             )
 
     monkeypatch.setattr(kb_module, "KBSchedulerService", RaisingSchedulerService)
-    result = RUNNER.invoke(app_module.app, ["kb", "scheduler", "status"], prog_name="aurora")
+    result = RUNNER.invoke(app_module.app, ["config", "kb", "scheduler", "status"], prog_name="aurora")
 
     assert result.exit_code == 1
     output = result.output.lower()
@@ -711,8 +711,8 @@ def test_kb_scheduler_command_surfaces_actionable_recovery(monkeypatch) -> None:
 
 def test_kb_scheduler_help_surface_is_discoverable() -> None:
     app_module = importlib.import_module("aurora.cli.app")
-    kb_help = RUNNER.invoke(app_module.app, ["kb", "--help"], prog_name="aurora")
-    scheduler_help = RUNNER.invoke(app_module.app, ["kb", "scheduler", "--help"], prog_name="aurora")
+    kb_help = RUNNER.invoke(app_module.app, ["config", "kb", "--help"], prog_name="aurora")
+    scheduler_help = RUNNER.invoke(app_module.app, ["config", "kb", "scheduler", "--help"], prog_name="aurora")
 
     assert kb_help.exit_code == 0
     assert scheduler_help.exit_code == 0

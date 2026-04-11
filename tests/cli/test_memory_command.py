@@ -28,7 +28,7 @@ class TestMemoryList:
             mock_store.list_memories.return_value = []
             mock_store_cls.return_value = mock_store
 
-            result = runner.invoke(app, ["memory", "list"])
+            result = runner.invoke(app, ["config", "memory", "list"])
 
         assert result.exit_code == 0
         assert "Nenhuma memoria encontrada" in result.output
@@ -44,7 +44,7 @@ class TestMemoryList:
             mock_store.list_memories.return_value = memories
             mock_store_cls.return_value = mock_store
 
-            result = runner.invoke(app, ["memory", "list"])
+            result = runner.invoke(app, ["config", "memory", "list"])
 
         assert result.exit_code == 0
         assert "Projeto Aurora" in result.output
@@ -61,7 +61,7 @@ class TestMemoryList:
             mock_store.list_memories.return_value = memories
             mock_store_cls.return_value = mock_store
 
-            result = runner.invoke(app, ["memory", "list", "--json"])
+            result = runner.invoke(app, ["config", "memory", "list", "--json"])
 
         assert result.exit_code == 0
         data = json.loads(result.output)
@@ -76,7 +76,7 @@ class TestMemoryList:
             mock_store.list_memories.return_value = []
             mock_store_cls.return_value = mock_store
 
-            result = runner.invoke(app, ["memory", "list", "--json"])
+            result = runner.invoke(app, ["config", "memory", "list", "--json"])
 
         assert result.exit_code == 0
         data = json.loads(result.output)
@@ -107,7 +107,7 @@ class TestMemorySearch:
 
             with patch("aurora.cli.memory.load_settings") as mock_settings:
                 mock_settings.return_value = MagicMock(memory_top_k=5, memory_min_score=0.25)
-                result = runner.invoke(app, ["memory", "search", "Aurora"])
+                result = runner.invoke(app, ["config", "memory", "search", "Aurora"])
 
         assert result.exit_code == 0
         mock_backend.search.assert_called_once_with("Aurora")
@@ -128,7 +128,7 @@ class TestMemorySearch:
 
             with patch("aurora.cli.memory.load_settings") as mock_settings:
                 mock_settings.return_value = MagicMock(memory_top_k=5, memory_min_score=0.25)
-                result = runner.invoke(app, ["memory", "search", "Aurora"])
+                result = runner.invoke(app, ["config", "memory", "search", "Aurora"])
 
         assert "0.88" in result.output
         assert "Reuniao Aurora" in result.output
@@ -149,7 +149,7 @@ class TestMemorySearch:
 
             with patch("aurora.cli.memory.load_settings") as mock_settings:
                 mock_settings.return_value = MagicMock(memory_top_k=5, memory_min_score=0.25)
-                result = runner.invoke(app, ["memory", "search", "query", "--json"])
+                result = runner.invoke(app, ["config", "memory", "search", "query", "--json"])
 
         assert result.exit_code == 0
         data = json.loads(result.output)
@@ -171,7 +171,7 @@ class TestMemorySearch:
 
             with patch("aurora.cli.memory.load_settings") as mock_settings:
                 mock_settings.return_value = MagicMock(memory_top_k=5, memory_min_score=0.25)
-                result = runner.invoke(app, ["memory", "search", "inexistente"])
+                result = runner.invoke(app, ["config", "memory", "search", "inexistente"])
 
         assert result.exit_code == 0
         assert "Nenhuma memoria" in result.output
@@ -195,7 +195,7 @@ class TestMemoryEdit:
         with patch("aurora.cli.memory.get_preferences_path", return_value=prefs_path):
             with patch("aurora.cli.memory.subprocess.run") as mock_run:
                 with patch.dict(os.environ, {"EDITOR": "vim"}):
-                    result = runner.invoke(app, ["memory", "edit"])
+                    result = runner.invoke(app, ["config", "memory", "edit"])
 
         mock_run.assert_called_once()
         call_args = mock_run.call_args[0][0]
@@ -208,7 +208,7 @@ class TestMemoryEdit:
 
         with patch("aurora.cli.memory.get_preferences_path", return_value=prefs_path):
             with patch("aurora.cli.memory.subprocess.run"):
-                result = runner.invoke(app, ["memory", "edit"])
+                result = runner.invoke(app, ["config", "memory", "edit"])
 
         assert prefs_path.exists()
         content = prefs_path.read_text(encoding="utf-8")
@@ -220,7 +220,7 @@ class TestMemoryEdit:
 
         with patch("aurora.cli.memory.get_preferences_path", return_value=prefs_path):
             with patch("aurora.cli.memory.subprocess.run"):
-                result = runner.invoke(app, ["memory", "edit"])
+                result = runner.invoke(app, ["config", "memory", "edit"])
 
         assert "criado" in result.output.lower() or str(prefs_path) in result.output
 
@@ -243,7 +243,7 @@ class TestMemoryClear:
             with patch("aurora.cli.memory._remove_qmd_collection"):
                 with patch("aurora.cli.memory.load_settings") as mock_settings:
                     mock_settings.return_value = MagicMock(kb_qmd_index_name="aurora-kb")
-                    result = runner.invoke(app, ["memory", "clear", "--yes"])
+                    result = runner.invoke(app, ["config", "memory", "clear", "--yes"])
 
         assert result.exit_code == 0
         mock_store.clear.assert_called_once()
@@ -258,7 +258,7 @@ class TestMemoryClear:
             with patch("aurora.cli.memory._remove_qmd_collection") as mock_remove:
                 with patch("aurora.cli.memory.load_settings") as mock_settings:
                     mock_settings.return_value = MagicMock(kb_qmd_index_name="aurora-kb")
-                    result = runner.invoke(app, ["memory", "clear", "--yes"])
+                    result = runner.invoke(app, ["config", "memory", "clear", "--yes"])
 
         mock_remove.assert_called_once()
 
@@ -272,7 +272,7 @@ class TestMemoryClear:
             with patch("aurora.cli.memory._remove_qmd_collection"):
                 with patch("aurora.cli.memory.load_settings") as mock_settings:
                     mock_settings.return_value = MagicMock(kb_qmd_index_name="aurora-kb")
-                    result = runner.invoke(app, ["memory", "clear", "--yes", "--json"])
+                    result = runner.invoke(app, ["config", "memory", "clear", "--yes", "--json"])
 
         assert result.exit_code == 0
         data = json.loads(result.output)
@@ -286,7 +286,7 @@ class TestMemoryClear:
             mock_store_cls.return_value = mock_store
 
             # Simulate user confirming 'n' via stdin
-            result = runner.invoke(app, ["memory", "clear"], input="n\n")
+            result = runner.invoke(app, ["config", "memory", "clear"], input="n\n")
 
         mock_store.clear.assert_not_called()
         assert "cancelada" in result.output.lower() or result.exit_code == 0
@@ -312,13 +312,13 @@ class TestMemoryClearConfirmation:
             with patch("aurora.cli.memory._remove_qmd_collection", side_effect=capture_remove):
                 with patch("aurora.cli.memory.load_settings") as mock_settings:
                     mock_settings.return_value = MagicMock(kb_qmd_index_name="aurora-kb")
-                    runner.invoke(app, ["memory", "clear", "--yes"])
+                    runner.invoke(app, ["config", "memory", "clear", "--yes"])
 
         # _remove_qmd_collection is called once with the index name (not collection name)
         assert len(removed_collections) == 1
 
     def test_memory_app_registered_in_app(self) -> None:
         """memory_app must be registered under 'memory' name in root app."""
-        result = runner.invoke(app, ["memory", "--help"])
+        result = runner.invoke(app, ["config", "memory", "--help"])
         assert result.exit_code == 0
         assert "memory" in result.output.lower() or "list" in result.output.lower()

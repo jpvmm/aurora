@@ -40,7 +40,7 @@ def test_model_set_updates_settings_and_keeps_existing_cached_file(
     result = RUNNER.invoke(
         app_module.app,
         [
-            "model",
+            "config", "model",
             "set",
             "--endpoint",
             "http://127.0.0.1:8081",
@@ -73,7 +73,7 @@ def test_model_set_blocks_non_local_endpoint_with_recovery_message(
     result = RUNNER.invoke(
         app_module.app,
         [
-            "model",
+            "config", "model",
             "set",
             "--endpoint",
             "https://api.openai.com/v1",
@@ -113,7 +113,7 @@ def test_model_set_runs_hf_download_pipeline_when_source_is_provided(
     result = RUNNER.invoke(
         app_module.app,
         [
-            "model",
+            "config", "model",
             "set",
             "--source",
             "meta-llama/Llama-3-8B-GGUF:llama-3-8b.Q4_K_M.gguf",
@@ -158,7 +158,7 @@ def test_model_start_prints_persistent_server_guidance(
 
     monkeypatch.setattr(model_module, "ServerLifecycleService", lambda: FakeService(), raising=False)
 
-    result = RUNNER.invoke(app_module.app, ["model", "start"], prog_name="aurora")
+    result = RUNNER.invoke(app_module.app, ["config", "model", "start"], prog_name="aurora")
 
     assert result.exit_code == 0
     assert "permanece ativo" in result.output.lower()
@@ -191,7 +191,7 @@ def test_model_stop_reports_external_runtime_without_termination(
 
     monkeypatch.setattr(model_module, "ServerLifecycleService", lambda: FakeService(), raising=False)
 
-    result = RUNNER.invoke(app_module.app, ["model", "stop"], prog_name="aurora")
+    result = RUNNER.invoke(app_module.app, ["config", "model", "stop"], prog_name="aurora")
 
     assert result.exit_code == 0
     assert "servidor externo" in result.output.lower()
@@ -222,7 +222,7 @@ def test_model_status_supports_json_output(
 
     monkeypatch.setattr(model_module, "ServerLifecycleService", lambda: FakeService(), raising=False)
 
-    result = RUNNER.invoke(app_module.app, ["model", "status", "--json"], prog_name="aurora")
+    result = RUNNER.invoke(app_module.app, ["config", "model", "status", "--json"], prog_name="aurora")
 
     assert result.exit_code == 0
     payload = json.loads(result.output)
@@ -257,7 +257,7 @@ def test_model_health_supports_json_output(
 
     monkeypatch.setattr(model_module, "ServerLifecycleService", lambda: FakeService(), raising=False)
 
-    result = RUNNER.invoke(app_module.app, ["model", "health", "--json"], prog_name="aurora")
+    result = RUNNER.invoke(app_module.app, ["config", "model", "health", "--json"], prog_name="aurora")
 
     assert result.exit_code == 1
     payload = json.loads(result.output)
@@ -293,7 +293,7 @@ def test_model_health_text_output_displays_pid_and_uptime_lines(
 
     monkeypatch.setattr(model_module, "ServerLifecycleService", lambda: FakeService(), raising=False)
 
-    result = RUNNER.invoke(app_module.app, ["model", "health"], prog_name="aurora")
+    result = RUNNER.invoke(app_module.app, ["config", "model", "health"], prog_name="aurora")
 
     assert result.exit_code == 0
     assert "- pid: 7001" in result.output
@@ -341,7 +341,7 @@ def test_model_start_non_interactive_requires_override_for_external_runtime(
     monkeypatch.setattr(model_module, "_is_interactive_terminal", lambda: False, raising=False)
     monkeypatch.setattr(model_module, "ServerLifecycleService", lambda: FakeService(), raising=False)
 
-    result = RUNNER.invoke(app_module.app, ["model", "start"], prog_name="aurora")
+    result = RUNNER.invoke(app_module.app, ["config", "model", "start"], prog_name="aurora")
 
     assert result.exit_code == 1
     assert "--yes" in result.output
@@ -375,7 +375,7 @@ def test_model_set_blocks_restart_without_override_in_non_interactive_mode(
 
     result = RUNNER.invoke(
         app_module.app,
-        ["model", "set", "--model", "Qwen3-8B-Q4_0"],
+        ["config", "model", "set", "--model", "Qwen3-8B-Q4_0"],
         prog_name="aurora",
     )
 
@@ -440,7 +440,7 @@ def test_model_set_yes_restarts_managed_runtime_after_model_change(
 
     result = RUNNER.invoke(
         app_module.app,
-        ["model", "set", "--model", "Qwen3-8B-Q4_0", "--yes"],
+        ["config", "model", "set", "--model", "Qwen3-8B-Q4_0", "--yes"],
         prog_name="aurora",
     )
 
