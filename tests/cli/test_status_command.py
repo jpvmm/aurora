@@ -50,7 +50,6 @@ def _install_happy_path_monkeypatches(monkeypatch, status_module) -> None:
         def get_status(self) -> LifecycleStatus:
             return _fake_lifecycle_status()
 
-    monkeypatch.setattr(status_module, "_run_status", status_module._run_status)
     # Patch ServerLifecycleService as imported inside _run_status via lazy import — we need
     # to patch it in the runtime module since status.py imports it lazily.
     import aurora.runtime.server_lifecycle as lifecycle_mod
