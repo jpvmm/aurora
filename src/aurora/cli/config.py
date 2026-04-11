@@ -22,7 +22,7 @@ config_app = typer.Typer(
 def config_callback(ctx: typer.Context) -> None:
     if ctx.invoked_subcommand is not None:
         return
-    typer.echo("Use `aurora config show` para ver a configuracao atual.")
+    typer.echo("Use `aurora config show` ou `aurora config --help` para ver opcoes disponiveis.")
     raise typer.Exit(code=1)
 
 
@@ -80,6 +80,19 @@ def mask_sensitive(value: str) -> str:
     query = "&".join(f"{key}={query_value}" for key, query_value in query_parts)
 
     return urlunsplit((parts.scheme, f"{userinfo}{host}", parts.path, query, parts.fragment))
+
+
+# Namespace sub-typers — move kb/model/memory/setup under `aurora config` (per D-02, D-03, D-13)
+# Imported at module bottom to avoid circular imports (setup.py imports from config via model_set_command chain).
+from aurora.cli.kb import kb_app  # noqa: E402
+from aurora.cli.memory import memory_app  # noqa: E402
+from aurora.cli.model import model_app  # noqa: E402
+from aurora.cli.setup import setup_app  # noqa: E402
+
+config_app.add_typer(kb_app, name="kb")
+config_app.add_typer(model_app, name="model")
+config_app.add_typer(memory_app, name="memory")
+config_app.add_typer(setup_app, name="setup")
 
 
 __all__ = ["config_app", "config_show_command", "mask_sensitive"]
