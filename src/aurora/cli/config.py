@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from urllib.parse import parse_qsl, urlsplit, urlunsplit
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import typer
 
@@ -77,7 +77,9 @@ def mask_sensitive(value: str) -> str:
             query_parts.append((key, "***"))
         else:
             query_parts.append((key, query_value))
-    query = "&".join(f"{key}={query_value}" for key, query_value in query_parts)
+    # Re-encode via ``urlencode`` so percent-encoded values (``%20``, ``%3D``,
+    # ...) survive the round-trip instead of being rewritten verbatim.
+    query = urlencode(query_parts, doseq=True)
 
     return urlunsplit((parts.scheme, f"{userinfo}{host}", parts.path, query, parts.fragment))
 
