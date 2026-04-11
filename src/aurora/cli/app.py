@@ -12,6 +12,7 @@ from aurora.cli.deprecated import (
 )
 from aurora.cli.doctor import doctor_app
 from aurora.cli.setup import run_first_run_wizard, should_run_first_run_wizard
+from aurora.cli.status import status_app
 
 app = typer.Typer(
     invoke_without_command=True,
@@ -35,6 +36,7 @@ def root(ctx: typer.Context) -> None:
 # Core commands (per D-01)
 app.add_typer(ask_app, name="ask")
 app.add_typer(chat_app, name="chat")
+app.add_typer(status_app, name="status")
 app.add_typer(doctor_app, name="doctor")
 app.add_typer(config_app, name="config")
 
