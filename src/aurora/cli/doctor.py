@@ -260,6 +260,16 @@ def _check_kb_collection(settings: RuntimeSettings) -> DoctorIssue | None:
     return None
 
 
+def _collection_present(stdout: str, name: str) -> bool:
+    """Return True if ``name`` appears as an exact line in ``qmd collection list``.
+
+    ``qmd`` prints one collection per line. Use set-membership against stripped
+    lines so that substring matches (e.g. ``aurora-kb`` vs ``aurora-kb-managed``)
+    do not yield false positives or false negatives.
+    """
+    return name in {line.strip() for line in stdout.splitlines() if line.strip()}
+
+
 def _check_kb_embeddings(settings: RuntimeSettings) -> DoctorIssue | None:
     if shutil.which("qmd") is None:
         return None
@@ -283,7 +293,7 @@ def _check_kb_embeddings(settings: RuntimeSettings) -> DoctorIssue | None:
             commands=("aurora config kb rebuild",),
         )
 
-    if settings.kb_qmd_collection_name not in (result.stdout or ""):
+    if not _collection_present(result.stdout or "", settings.kb_qmd_collection_name):
         return DoctorIssue(
             category="kb_embeddings_missing",
             message=(
@@ -298,7 +308,7 @@ def _check_kb_embeddings(settings: RuntimeSettings) -> DoctorIssue | None:
 
 def _check_memory_index(settings: RuntimeSettings) -> DoctorIssue | None:
     try:
-        from aurora.memory.store import EpisodicMemoryStore
+        from aurora.memory.store import MEMORY_COLLECTION, EpisodicMemoryStore
 
         memories = EpisodicMemoryStore().list_memories()
     except Exception:
@@ -326,12 +336,12 @@ def _check_memory_index(settings: RuntimeSettings) -> DoctorIssue | None:
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
         return None
 
-    if "aurora-memory" not in (result.stdout or ""):
+    if not _collection_present(result.stdout or "", MEMORY_COLLECTION):
         return DoctorIssue(
             category="memory_index_missing",
             message=(
                 f"Memorias encontradas ({len(memories)}) mas colecao QMD "
-                "aurora-memory ausente."
+                f"{MEMORY_COLLECTION} ausente."
             ),
             commands=("aurora config memory clear --yes",),
         )
