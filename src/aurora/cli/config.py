@@ -82,8 +82,11 @@ def mask_sensitive(value: str) -> str:
     return urlunsplit((parts.scheme, f"{userinfo}{host}", parts.path, query, parts.fragment))
 
 
-# Namespace sub-typers — move kb/model/memory/setup under `aurora config` (per D-02, D-03, D-13)
-# Imported at module bottom to avoid circular imports (setup.py imports from config via model_set_command chain).
+# Namespace sub-typers — move kb/model/memory/setup under `aurora config` (per D-02, D-03, D-13).
+# Deferred to the bottom of the module so `mask_sensitive` (and the top-level
+# `config_app`) remain importable from `aurora.cli.doctor` and `aurora.cli.status`
+# before the sub-typers — which themselves import from `aurora.cli.config` via
+# the shared command helpers — are wired up.
 from aurora.cli.kb import kb_app  # noqa: E402
 from aurora.cli.memory import memory_app  # noqa: E402
 from aurora.cli.model import model_app  # noqa: E402
