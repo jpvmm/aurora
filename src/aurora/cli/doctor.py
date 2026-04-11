@@ -343,7 +343,14 @@ def _check_memory_index(settings: RuntimeSettings) -> DoctorIssue | None:
                 f"Memorias encontradas ({len(memories)}) mas colecao QMD "
                 f"{MEMORY_COLLECTION} ausente."
             ),
-            commands=("aurora config memory clear --yes",),
+            commands=(
+                # Non-destructive: the next `aurora chat` or `aurora ask`
+                # re-registers the collection and re-embeds memories on disk.
+                "aurora chat",
+                # Destructive fallback (ATENCAO: apaga as memorias em disco
+                # alem do indice):
+                "aurora config memory clear --yes",
+            ),
         )
     return None
 
