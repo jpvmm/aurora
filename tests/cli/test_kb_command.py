@@ -379,6 +379,8 @@ def test_kb_config_show_displays_detailed_settings(tmp_path: Path, monkeypatch) 
 def test_kb_config_set_updates_active_target_and_settings(tmp_path: Path, monkeypatch) -> None:
     app_module = importlib.import_module("aurora.cli.app")
     monkeypatch.setenv("AURORA_CONFIG_DIR", str(tmp_path / "config"))
+    vault_dir = tmp_path / "vault"
+    vault_dir.mkdir()
     save_settings(RuntimeSettings())
 
     result = RUNNER.invoke(
@@ -388,7 +390,7 @@ def test_kb_config_set_updates_active_target_and_settings(tmp_path: Path, monkey
             "config",
             "set",
             "--vault",
-            "/tmp/vault",
+            str(vault_dir),
             "--include",
             "notes/*.md",
             "--include",
@@ -406,7 +408,7 @@ def test_kb_config_set_updates_active_target_and_settings(tmp_path: Path, monkey
 
     assert result.exit_code == 0
     settings = load_settings()
-    assert settings.kb_vault_path == "/tmp/vault"
+    assert settings.kb_vault_path == str(vault_dir)
     assert settings.kb_include == ("daily/*.md", "notes/*.md")
     assert settings.kb_exclude == ("notes/private.md",)
     assert settings.kb_qmd_index_name == "team-index"
@@ -843,6 +845,79 @@ def test_kb_recent_when_manifest_corrupted_surfaces_recovery_commands(monkeypatc
     assert payload["ok"] is False
     assert payload["message"] == "Manifesto corrompido."
     assert payload["recovery_commands"] == ["aurora kb rebuild"]
+
+
+def test_kb_config_set_rejects_vault_with_embedded_newline(tmp_path: Path, monkeypatch) -> None:
+    app_module = importlib.import_module("aurora.cli.app")
+    monkeypatch.setenv("AURORA_CONFIG_DIR", str(tmp_path / "config"))
+    save_settings(RuntimeSettings())
+    vault_dir = tmp_path / "vault"
+    vault_dir.mkdir()
+    pasted = f"{vault_dir.parent}\n  {vault_dir.name}"
+
+    result = RUNNER.invoke(
+        app_module.app,
+        ["config", "kb", "config", "set", "--vault", pasted],
+        prog_name="aurora",
+    )
+
+    assert result.exit_code == 1
+    output = result.output.lower()
+    assert "quebra de linha" in output
+    assert not load_settings().kb_vault_path
+
+
+def test_kb_config_set_rejects_nonexistent_vault(tmp_path: Path, monkeypatch) -> None:
+    app_module = importlib.import_module("aurora.cli.app")
+    monkeypatch.setenv("AURORA_CONFIG_DIR", str(tmp_path / "config"))
+    save_settings(RuntimeSettings())
+    ghost = tmp_path / "does-not-exist"
+
+    result = RUNNER.invoke(
+        app_module.app,
+        ["config", "kb", "config", "set", "--vault", str(ghost)],
+        prog_name="aurora",
+    )
+
+    assert result.exit_code == 1
+    assert "nao existe" in result.output.lower()
+    assert not load_settings().kb_vault_path
+
+
+def test_kb_config_set_rejects_vault_pointing_at_file(tmp_path: Path, monkeypatch) -> None:
+    app_module = importlib.import_module("aurora.cli.app")
+    monkeypatch.setenv("AURORA_CONFIG_DIR", str(tmp_path / "config"))
+    save_settings(RuntimeSettings())
+    not_a_dir = tmp_path / "notes.md"
+    not_a_dir.write_text("conteudo", encoding="utf-8")
+
+    result = RUNNER.invoke(
+        app_module.app,
+        ["config", "kb", "config", "set", "--vault", str(not_a_dir)],
+        prog_name="aurora",
+    )
+
+    assert result.exit_code == 1
+    assert "nao e um diretorio" in result.output.lower()
+    assert not load_settings().kb_vault_path
+
+
+def test_kb_config_set_expands_tilde_and_persists_absolute_vault(tmp_path: Path, monkeypatch) -> None:
+    app_module = importlib.import_module("aurora.cli.app")
+    monkeypatch.setenv("AURORA_CONFIG_DIR", str(tmp_path / "config"))
+    monkeypatch.setenv("HOME", str(tmp_path))
+    save_settings(RuntimeSettings())
+    vault_dir = tmp_path / "vault"
+    vault_dir.mkdir()
+
+    result = RUNNER.invoke(
+        app_module.app,
+        ["config", "kb", "config", "set", "--vault", "~/vault"],
+        prog_name="aurora",
+    )
+
+    assert result.exit_code == 0
+    assert load_settings().kb_vault_path == str(vault_dir)
 
 
 def test_kb_recent_is_discoverable_in_help() -> None:

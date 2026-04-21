@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sys
 from datetime import UTC, datetime
+from pathlib import Path
 
 import typer
 
@@ -278,7 +279,7 @@ def kb_config_set_command(
     settings = load_settings()
     update_payload: dict[str, object] = {}
     if vault is not None:
-        update_payload["kb_vault_path"] = vault.strip()
+        update_payload["kb_vault_path"] = _validate_vault_path(vault)
     if include is not None:
         update_payload["kb_include"] = tuple(include)
     if exclude is not None:
@@ -619,6 +620,36 @@ def _confirm_delete(*, json_output: bool) -> bool:
 
 def _is_interactive_terminal() -> bool:
     return bool(sys.stdin.isatty() and sys.stdout.isatty())
+
+
+def _validate_vault_path(raw: str) -> str:
+    stripped = raw.strip()
+    if not stripped:
+        typer.echo("erro: caminho do vault nao pode ser vazio.")
+        raise typer.Exit(code=1)
+
+    # Embedded whitespace is almost always a paste accident — a real path on
+    # macOS/Linux never contains a newline or tab, so reject early with a hint
+    # instead of silently persisting and failing on the next scan.
+    for char, label in (("\n", "quebra de linha"), ("\r", "retorno de carro"), ("\t", "tab")):
+        if char in stripped:
+            typer.echo(
+                f"erro: caminho do vault contem {label} embutido. "
+                "Cole o caminho em uma unica linha, sem quebra."
+            )
+            typer.echo(f"valor recebido: {stripped!r}")
+            raise typer.Exit(code=1)
+
+    expanded = Path(stripped).expanduser()
+    if not expanded.exists():
+        typer.echo(f"erro: caminho do vault nao existe: {expanded}")
+        typer.echo("recuperacao: verifique o caminho e tente novamente.")
+        raise typer.Exit(code=1)
+    if not expanded.is_dir():
+        typer.echo(f"erro: caminho do vault nao e um diretorio: {expanded}")
+        raise typer.Exit(code=1)
+
+    return str(expanded)
 
 
 kb_app.add_typer(kb_config_app, name="config")
