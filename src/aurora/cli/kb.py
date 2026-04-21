@@ -7,6 +7,11 @@ from datetime import UTC, datetime
 import typer
 
 from aurora.kb.contracts import KBFileDiagnostic, KBOperationCounters, KBOperationSummary
+from aurora.kb.manifest import (
+    KBManifestNoteRecord,
+    KBManifestStateError,
+    load_kb_manifest,
+)
 from aurora.kb.scheduler import KBSchedulerStatus, KBSchedulerService
 from aurora.kb.service import KBService, KBServiceError
 from aurora.runtime.settings import load_settings, save_settings
@@ -173,6 +178,44 @@ def kb_rebuild_command(
 
     _render_summary(summary=summary, json_output=json_output)
     _raise_for_partial_embedding(summary)
+
+
+@kb_app.command("recent")
+def kb_recent_command(
+    limit: int = typer.Option(
+        10,
+        "--limit",
+        "-n",
+        min=1,
+        help="Maximo de notas a exibir (padrao: 10).",
+    ),
+    json_output: bool = typer.Option(
+        False,
+        "--json",
+        help="Renderiza resposta estruturada em JSON.",
+    ),
+) -> None:
+    try:
+        manifest = load_kb_manifest()
+    except KBManifestStateError as error:
+        _render_manifest_error(error=error, json_output=json_output)
+        raise typer.Exit(code=1) from error
+
+    if manifest is None:
+        _render_recent_empty(json_output=json_output)
+        return
+
+    sorted_notes = sorted(
+        manifest.notes.items(),
+        key=lambda item: (item[1].indexed_at, item[0]),
+        reverse=True,
+    )
+    _render_recent(
+        vault_root=manifest.vault_root,
+        total=len(manifest.notes),
+        notes=sorted_notes[:limit],
+        json_output=json_output,
+    )
 
 
 @kb_config_app.command("show")
@@ -425,6 +468,73 @@ def _render_scheduler_status(*, status: KBSchedulerStatus, json_output: bool) ->
         typer.echo(f"ultimo_motivo: {status.last_run_reason}")
     if status.last_error_category:
         typer.echo(f"ultimo_erro: {status.last_error_category}")
+
+
+def _render_recent(
+    *,
+    vault_root: str,
+    total: int,
+    notes: list[tuple[str, KBManifestNoteRecord]],
+    json_output: bool,
+) -> None:
+    if json_output:
+        payload = {
+            "vault_root": vault_root,
+            "total": total,
+            "count": len(notes),
+            "notes": [
+                {
+                    "path": path,
+                    "indexed_at": record.indexed_at,
+                    "size": record.size,
+                    "cleaned_size": record.cleaned_size,
+                    "mtime_ns": record.mtime_ns,
+                    "sha256": record.sha256,
+                    "templater_tags_removed": record.templater_tags_removed,
+                }
+                for path, record in notes
+            ],
+        }
+        typer.echo(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+        return
+
+    typer.echo(f"vault: {vault_root}")
+    typer.echo(f"notas recentes: {len(notes)} de {total}")
+    if not notes:
+        typer.echo("(sem notas indexadas)")
+        return
+    for path, record in notes:
+        typer.echo(f"  {record.indexed_at}  {path}")
+
+
+def _render_recent_empty(*, json_output: bool) -> None:
+    if json_output:
+        payload = {
+            "vault_root": None,
+            "total": 0,
+            "count": 0,
+            "notes": [],
+        }
+        typer.echo(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+        return
+    typer.echo("Nenhum manifesto KB encontrado.")
+    typer.echo("recuperacao: aurora config kb ingest <vault>")
+
+
+def _render_manifest_error(
+    *, error: KBManifestStateError, json_output: bool
+) -> None:
+    if json_output:
+        payload = {
+            "ok": False,
+            "message": error.message,
+            "recovery_commands": list(error.recovery_commands),
+        }
+        typer.echo(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+        return
+    typer.echo(f"erro: {error.message}")
+    for command in error.recovery_commands:
+        typer.echo(f"recuperacao: {command}")
 
 
 def _format_optional_datetime(value: datetime | None) -> str | None:

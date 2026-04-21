@@ -17,6 +17,11 @@ from aurora.kb.contracts import (
     KBOperationSummary,
     KBScopeConfig,
 )
+from aurora.kb.manifest import (
+    KBManifest,
+    KBManifestNoteRecord,
+    KBManifestStateError,
+)
 from aurora.kb.service import KBService
 from aurora.kb.service import KBServiceError
 from aurora.runtime.settings import RuntimeSettings, load_settings, save_settings
@@ -720,3 +725,133 @@ def test_kb_scheduler_help_surface_is_discoverable() -> None:
     assert "enable" in scheduler_help.output.lower()
     assert "disable" in scheduler_help.output.lower()
     assert "status" in scheduler_help.output.lower()
+
+
+def _note_record(*, indexed_at: str, size: int = 100, cleaned_size: int = 90) -> KBManifestNoteRecord:
+    return KBManifestNoteRecord(
+        size=size,
+        mtime_ns=1_700_000_000_000_000_000,
+        sha256="deadbeef",
+        indexed_at=indexed_at,
+        cleaned_size=cleaned_size,
+        templater_tags_removed=0,
+    )
+
+
+def test_kb_recent_renders_notes_sorted_by_indexed_at_desc_with_limit(monkeypatch) -> None:
+    app_module = importlib.import_module("aurora.cli.app")
+    kb_module = importlib.import_module("aurora.cli.kb")
+    manifest = KBManifest(
+        vault_root="/tmp/vault",
+        notes={
+            "notes/old.md": _note_record(indexed_at="2026-04-10T08:00:00Z"),
+            "notes/new.md": _note_record(indexed_at="2026-04-20T15:00:00Z"),
+            "notes/mid.md": _note_record(indexed_at="2026-04-15T12:00:00Z"),
+        },
+    )
+    monkeypatch.setattr(kb_module, "load_kb_manifest", lambda: manifest)
+
+    result = RUNNER.invoke(
+        app_module.app,
+        ["config", "kb", "recent", "--limit", "2"],
+        prog_name="aurora",
+    )
+
+    assert result.exit_code == 0
+    output = result.output
+    assert "vault: /tmp/vault" in output
+    assert "notas recentes: 2 de 3" in output
+    new_idx = output.find("notes/new.md")
+    mid_idx = output.find("notes/mid.md")
+    old_idx = output.find("notes/old.md")
+    assert new_idx != -1
+    assert mid_idx != -1
+    assert old_idx == -1  # trimmed by limit
+    assert new_idx < mid_idx
+
+
+def test_kb_recent_json_output_schema_and_ordering(monkeypatch) -> None:
+    app_module = importlib.import_module("aurora.cli.app")
+    kb_module = importlib.import_module("aurora.cli.kb")
+    manifest = KBManifest(
+        vault_root="/tmp/vault",
+        notes={
+            "a.md": _note_record(indexed_at="2026-04-01T00:00:00Z"),
+            "b.md": _note_record(indexed_at="2026-04-02T00:00:00Z"),
+        },
+    )
+    monkeypatch.setattr(kb_module, "load_kb_manifest", lambda: manifest)
+
+    result = RUNNER.invoke(
+        app_module.app,
+        ["config", "kb", "recent", "--json"],
+        prog_name="aurora",
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["vault_root"] == "/tmp/vault"
+    assert payload["total"] == 2
+    assert payload["count"] == 2
+    paths = [item["path"] for item in payload["notes"]]
+    assert paths == ["b.md", "a.md"]
+    first = payload["notes"][0]
+    assert set(first.keys()) == {
+        "path",
+        "indexed_at",
+        "size",
+        "cleaned_size",
+        "mtime_ns",
+        "sha256",
+        "templater_tags_removed",
+    }
+
+
+def test_kb_recent_when_manifest_missing_suggests_ingest_recovery(monkeypatch) -> None:
+    app_module = importlib.import_module("aurora.cli.app")
+    kb_module = importlib.import_module("aurora.cli.kb")
+    monkeypatch.setattr(kb_module, "load_kb_manifest", lambda: None)
+
+    result = RUNNER.invoke(app_module.app, ["config", "kb", "recent"], prog_name="aurora")
+
+    assert result.exit_code == 0
+    output = result.output.lower()
+    assert "nenhum manifesto kb encontrado" in output
+    assert "aurora config kb ingest" in output
+
+
+def test_kb_recent_when_manifest_corrupted_surfaces_recovery_commands(monkeypatch) -> None:
+    app_module = importlib.import_module("aurora.cli.app")
+    kb_module = importlib.import_module("aurora.cli.kb")
+
+    def _raise() -> KBManifest:
+        raise KBManifestStateError(
+            message="Manifesto corrompido.",
+            recovery_commands=("aurora kb rebuild",),
+        )
+
+    monkeypatch.setattr(kb_module, "load_kb_manifest", _raise)
+
+    result = RUNNER.invoke(
+        app_module.app,
+        ["config", "kb", "recent", "--json"],
+        prog_name="aurora",
+    )
+
+    assert result.exit_code == 1
+    payload = json.loads(result.output)
+    assert payload["ok"] is False
+    assert payload["message"] == "Manifesto corrompido."
+    assert payload["recovery_commands"] == ["aurora kb rebuild"]
+
+
+def test_kb_recent_is_discoverable_in_help() -> None:
+    app_module = importlib.import_module("aurora.cli.app")
+    kb_help = RUNNER.invoke(app_module.app, ["config", "kb", "--help"], prog_name="aurora")
+    recent_help = RUNNER.invoke(app_module.app, ["config", "kb", "recent", "--help"], prog_name="aurora")
+
+    assert kb_help.exit_code == 0
+    assert recent_help.exit_code == 0
+    assert "recent" in kb_help.output.lower()
+    assert "--limit" in recent_help.output.lower()
+    assert "--json" in recent_help.output.lower()
