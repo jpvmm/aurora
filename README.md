@@ -382,11 +382,23 @@ Everything about the vault knowledge base.
 | `aurora config kb update` | Re-index only notes that changed since the last run (based on mtime). Use `--verify-hash` to fall back to content hashing. |
 | `aurora config kb delete` | Destructive — removes all indexed content from the active collection. Requires `--yes` in non-interactive shells. |
 | `aurora config kb rebuild` | Full rebuild: deletes and re-ingests. Equivalent to `delete` + `ingest` but atomic. |
+| `aurora config kb recent` | Read-only — list the most recently ingested notes sorted by `indexed_at`. Accepts `--limit N` / `-n N` (default 10) and `--json`. Useful for confirming `update` actually picked up your new notes. |
 
-All four accept:
+The four mutating commands (`ingest`, `update`, `delete`, `rebuild`) accept:
 - `--json` — structured output
 - `--dry-run` (not on `delete`) — preview counters without touching the index
 - `--index NAME` / `--collection NAME` — override the active QMD index/collection for this run only
+
+**Example — see what was just indexed:**
+
+```bash
+$ aurora config kb recent -n 3
+vault: /Users/you/Obsidian/MyVault
+notas recentes: 3 de 337
+  2026-04-21T14:02:11Z  daily/2026-04-21.md
+  2026-04-21T13:48:00Z  projects/aurora.md
+  2026-04-20T22:10:55Z  notes/dbs/vectors.md
+```
 
 **Example first ingestion:**
 
@@ -416,7 +428,7 @@ Flags for `config set`:
 
 | Flag | Effect |
 |---|---|
-| `--vault PATH` | Default vault path used when `ingest` is called with no argument. |
+| `--vault PATH` | Default vault path used when `ingest` is called with no argument. Validated at set-time: the path must exist and be a directory, must not contain embedded whitespace (newlines/tabs — usually a paste accident), and `~` is expanded to an absolute path before being persisted. |
 | `--include PATTERN` | Glob patterns to include. Repeat to add multiple. |
 | `--exclude PATTERN` | Glob patterns to exclude. Repeat to add multiple. |
 | `--index NAME` | Active QMD index name (default `aurora-kb`). |
@@ -569,6 +581,25 @@ Aurora refused to answer because retrieval found nothing relevant enough. This i
 - Is the vault ingested? `aurora status` should show a non-zero note count.
 - Is the query in Portuguese? Retrieval is language-tuned — try rephrasing.
 - Consider increasing `retrieval_top_k` in `settings.json` (bounds: 5–30).
+
+### `kb update` reports zero notes but you just added some
+
+Almost always a vault-path mismatch between your config and where you're actually saving notes. Triage in three commands:
+
+```bash
+aurora config kb config show                      # what path is Aurora reading?
+aurora config kb update --dry-run --json          # how many notes does scan find? (look at counters.read)
+aurora config kb recent -n 1                      # when was the last note actually indexed?
+```
+
+If `config show` prints a path that looks wrapped across lines or contains unexpected whitespace, you pasted a bad value into `--vault`. The CLI now validates this at set-time, but older configs persisted before validation can still contain the problem. Re-set it:
+
+```bash
+aurora config kb config set --vault "/absolute/path/to/vault"
+aurora config kb ingest     "/absolute/path/to/vault"
+```
+
+Shell-quoting gotcha: inside double quotes, `\ ` does **not** escape a space — the backslash is passed through literally. Either quote the whole path with plain spaces, or drop the quotes and backslash-escape (not both).
 
 ### Python 3.12 or older
 
