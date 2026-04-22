@@ -9,6 +9,7 @@ Each doc is standalone. Pick whichever topic you're curious about; there's no re
 | Doc | Topic | What you'll learn |
 |---|---|---|
 | [memory.md](memory.md) | How the agent's memory works | The two memory tiers, how a chat session becomes a persisted memory, how memories get pulled back into future answers, and why Aurora uses the design it does. |
+| [model.md](model.md) | How Aurora works with the model (and llama.cpp) | The full inference path: why llama.cpp, the HTTP surface (OpenAI-compat), managed vs external server lifecycle, the privacy gate, streaming vs sync, model download via Hugging Face, and how prompts are assembled end-to-end. |
 
 ## Conventions
 
