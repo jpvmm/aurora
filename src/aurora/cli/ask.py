@@ -10,8 +10,10 @@ import typer
 from aurora.llm.prompts import INSUFFICIENT_EVIDENCE_MSG
 from aurora.llm.service import LLMService
 from aurora.memory.store import MEMORY_COLLECTION, MEMORY_INDEX
+from aurora.retrieval.iterative import IterativeRetrievalOrchestrator
 from aurora.retrieval.qmd_search import QMDSearchBackend
 from aurora.retrieval.service import RetrievalService
+from aurora.retrieval.trace_render import render_trace_json, render_trace_text
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +27,11 @@ ask_app = typer.Typer(
 def ask_command(
     words: list[str] = typer.Argument(None, help="Pergunta para buscar no vault."),
     json_output: bool = typer.Option(False, "--json", help="Renderiza resposta em JSON."),
+    trace: bool = typer.Option(
+        False,
+        "--trace",
+        help="Mostra trace por tentativa de retrieval.",
+    ),
 ) -> None:
     """Busca evidencias no vault e memorias e gera uma resposta fundamentada."""
     if not words:
@@ -47,10 +54,30 @@ def ask_command(
         collection_name=MEMORY_COLLECTION,
     )
     retrieval = RetrievalService(memory_backend=memory_backend)
-    result = retrieval.retrieve_with_memory(
+
+    # Iterative retrieval loop (D-04, D-09): the orchestrator drives attempt 1
+    # itself (no carry-forward in `aurora ask`) and emits "Revisando busca..." to
+    # stderr only when not in JSON mode (D-02).
+    def _status(msg: str) -> None:
+        if not json_output:
+            typer.echo(msg, err=True)
+
+    orchestrator = IterativeRetrievalOrchestrator(llm=llm, on_status=_status)
+
+    intent_for_loop = "memory" if intent_result.intent == "memory" else "vault"
+
+    def _retrieve_for_loop(q, *, search_strategy, search_terms):
+        return retrieval.retrieve_with_memory(
+            q, search_strategy=search_strategy, search_terms=search_terms,
+        )
+
+    result, captured_trace = orchestrator.run(
         query,
+        intent=intent_for_loop,
+        retrieve_fn=_retrieve_for_loop,
         search_strategy=intent_result.search,
         search_terms=intent_result.terms,
+        first_attempt=None,
     )
 
     logger.debug(
@@ -75,20 +102,23 @@ def ask_command(
 
     if result.insufficient_evidence:
         if json_output:
-            print(
-                json.dumps(
-                    {
-                        "query": query,
-                        "answer": "",
-                        "sources": [],
-                        "insufficient_evidence": True,
-                    },
-                    ensure_ascii=False,
-                    indent=2,
-                )
-            )
+            payload: dict[str, object] = {
+                "query": query,
+                "answer": "",
+                "sources": [],
+                "insufficient_evidence": True,
+            }
+            if trace:
+                # Symmetry: --trace must surface the trace on the insufficient path
+                # too (NIT 2 — pinned by test_trace_emitted_on_insufficient_evidence_path_json_mode).
+                payload["trace"] = render_trace_json(captured_trace)
+            print(json.dumps(payload, ensure_ascii=False, indent=2))
         else:
             typer.echo(INSUFFICIENT_EVIDENCE_MSG)
+            if trace:
+                # Symmetry with happy path: --trace renders to stderr regardless
+                # of which branch fired (pinned by test_trace_emitted_on_insufficient_evidence_path_text_mode).
+                typer.echo(render_trace_text(captured_trace), err=True)
         return
 
     if json_output:
@@ -119,20 +149,19 @@ def ask_command(
 
     if json_output:
         sources = list(dict.fromkeys(n.path for n in result.notes))
-        print(
-            json.dumps(
-                {
-                    "query": query,
-                    "answer": response,
-                    "sources": sources,
-                    "insufficient_evidence": False,
-                },
-                ensure_ascii=False,
-                indent=2,
-            )
-        )
+        payload = {
+            "query": query,
+            "answer": response,
+            "sources": sources,
+            "insufficient_evidence": False,
+        }
+        if trace:
+            payload["trace"] = render_trace_json(captured_trace)
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
     else:
         print()  # Final newline after streamed tokens
+        if trace:
+            typer.echo(render_trace_text(captured_trace), err=True)
 
 
 __all__ = ["ask_app"]

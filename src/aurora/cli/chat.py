@@ -11,7 +11,9 @@ from aurora.chat.session import ChatSession
 from aurora.llm.service import LLMService
 from aurora.memory.store import EpisodicMemoryStore, MEMORY_COLLECTION, MEMORY_INDEX
 from aurora.memory.summarizer import MemorySummarizer
+from aurora.retrieval.contracts import IterativeRetrievalTrace
 from aurora.retrieval.qmd_search import QMDSearchBackend
+from aurora.retrieval.trace_render import render_trace_text
 
 chat_app = typer.Typer(
     no_args_is_help=False,
@@ -40,6 +42,11 @@ def _background_save(
 @chat_app.callback(invoke_without_command=True)
 def chat_command(
     clear: bool = typer.Option(False, "--clear", help="Limpa historico de conversa."),
+    trace: bool = typer.Option(
+        False,
+        "--trace",
+        help="Mostra trace por turno apos a resposta.",
+    ),
 ) -> None:
     """Start an interactive multi-turn chat session with intent routing."""
     if clear:
@@ -55,7 +62,19 @@ def chat_command(
         index_name=MEMORY_INDEX,
         collection_name=MEMORY_COLLECTION,
     )
-    session = ChatSession(on_status=_status, memory_backend=memory_backend)
+
+    # --trace wiring (D-09): per-turn trace consumer captures the orchestrator's
+    # IterativeRetrievalTrace so we can render it to stderr after each response.
+    captured: dict[str, IterativeRetrievalTrace | None] = {"trace": None}
+
+    def _consume_trace(t: IterativeRetrievalTrace) -> None:
+        captured["trace"] = t
+
+    session = ChatSession(
+        on_status=_status,
+        memory_backend=memory_backend,
+        last_trace_consumer=_consume_trace if trace else None,
+    )
     typer.echo("Aurora Chat — digite 'sair' para encerrar.")
     typer.echo("")
 
@@ -75,6 +94,10 @@ def chat_command(
             typer.echo("")  # blank line before response
             session.process_turn(user_input)
             typer.echo("")  # blank line after response
+
+            if trace and captured["trace"] is not None:
+                typer.echo(render_trace_text(captured["trace"]), err=True)
+                captured["trace"] = None  # reset for next turn
     except KeyboardInterrupt:
         typer.echo("\nAte logo!")
 

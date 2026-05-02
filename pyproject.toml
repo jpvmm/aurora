@@ -26,4 +26,5 @@ pythonpath = ["src"]
 testpaths = ["tests"]
 markers = [
   "integration: marks tests that exercise real qmd integration flows",
+  "loop_enabled: marks aurora ask CLI tests that exercise the real iterative retrieval loop (opts out of the autouse pass-through orchestrator)",
 ]

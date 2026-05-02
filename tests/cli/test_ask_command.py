@@ -57,6 +57,55 @@ def _mock_ask_grounded_streaming(mock_llm_instance: MagicMock) -> None:
     mock_llm_instance.ask_grounded.side_effect = side_effect
 
 
+@pytest.fixture(autouse=True)
+def _disable_iterative_loop_in_existing_tests(request):
+    """Pin existing aurora ask tests to disable-path orchestrator behavior.
+
+    Phase 7 wires IterativeRetrievalOrchestrator into aurora ask. Existing
+    tests pre-date the loop and don't script reformulate_query / judge_sufficiency
+    on the mocked LLMService. Patch the orchestrator class so it acts as a
+    pass-through that just calls retrieve_fn once and emits a one-attempt trace.
+
+    Tests that EXPLICITLY exercise the loop (TestAskTrace) opt out via the
+    `loop_enabled` marker.
+    """
+    if request.node.get_closest_marker("loop_enabled"):
+        yield
+        return
+
+    from aurora.retrieval.contracts import AttemptTrace, IterativeRetrievalTrace
+
+    class _PassThroughOrch:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def run(self, query, *, intent, retrieve_fn, search_strategy,
+                search_terms, first_attempt=None):
+            result = first_attempt if first_attempt is not None else retrieve_fn(
+                query, search_strategy=search_strategy, search_terms=search_terms,
+            )
+            trace = IterativeRetrievalTrace(
+                attempts=(
+                    AttemptTrace(
+                        attempt_number=1, query=query, intent=intent,
+                        hit_count=len(result.notes),
+                        top_score=max(
+                            (n.score for n in result.notes if n.origin == "hybrid"),
+                            default=0.0,
+                        ),
+                        sufficient=True, reason="",
+                        paths=tuple(n.path for n in result.notes),
+                    ),
+                ),
+                judge_enabled=False,
+                early_exit_reason="disabled",
+            )
+            return result, trace
+
+    with patch("aurora.cli.ask.IterativeRetrievalOrchestrator", _PassThroughOrch):
+        yield
+
+
 # ---------------------------------------------------------------------------
 # Test: streaming text output
 # ---------------------------------------------------------------------------
@@ -341,3 +390,221 @@ def test_ask_uses_chat_turn_when_memory_notes_present(mock_retrieval_cls, mock_l
 
     mock_llm_cls.return_value.chat_turn.assert_called_once()
     mock_llm_cls.return_value.ask_grounded.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Phase 7 Plan 03: --trace flag, status line, PRIV-03 leak tests
+# ---------------------------------------------------------------------------
+
+_SECRET = "SECRET_TOKEN_DO_NOT_LEAK_42"
+
+
+def _result_with_secret_in_content() -> RetrievalResult:
+    """Retrieval result whose note content embeds a SECRET token.
+
+    Used to prove that --trace rendering NEVER leaks note content to either
+    stderr (text mode) or stdout JSON envelope (--json mode). The trace
+    surface is paths/scores/counts/queries only by construction (PRIV-03).
+    """
+    note = RetrievedNote(
+        path="notas/secret-bearer.md",
+        score=0.92,
+        content=f"some prefix {_SECRET} some suffix " * 20,
+        source="vault",
+        origin="hybrid",
+    )
+    return RetrievalResult(
+        ok=True,
+        notes=(note,),
+        # Even the context_text contains the SECRET — the trace must NOT pull from it
+        context_text=f"--- notas/secret-bearer.md ---\n{_SECRET}\n",
+        insufficient_evidence=False,
+    )
+
+
+class TestAskTrace:
+    """--trace flag rendering, status line, PRIV-03 leak guards."""
+
+    @patch("aurora.cli.ask.LLMService")
+    @patch("aurora.cli.ask.RetrievalService")
+    def test_trace_text_does_not_appear_without_flag(
+        self, mock_retrieval_cls, mock_llm_cls,
+    ):
+        """No --trace flag -> 'retrieval trace' string never appears in stderr."""
+        mock_retrieval_cls.return_value.retrieve_with_memory.return_value = _GOOD_RESULT
+        _mock_ask_grounded_streaming(mock_llm_cls.return_value)
+
+        result = runner.invoke(app, ["ask", "pergunta"])
+        assert result.exit_code == 0
+        assert "retrieval trace" not in (result.stderr or "")
+
+    @patch("aurora.cli.ask.LLMService")
+    @patch("aurora.cli.ask.RetrievalService")
+    def test_trace_text_appears_with_flag_text_mode(
+        self, mock_retrieval_cls, mock_llm_cls,
+    ):
+        """--trace (text mode) emits trace summary to stderr."""
+        mock_retrieval_cls.return_value.retrieve_with_memory.return_value = _GOOD_RESULT
+        _mock_ask_grounded_streaming(mock_llm_cls.return_value)
+
+        result = runner.invoke(app, ["ask", "pergunta", "--trace"])
+        assert result.exit_code == 0
+        assert "retrieval trace" in (result.stderr or "")
+
+    @patch("aurora.cli.ask.LLMService")
+    @patch("aurora.cli.ask.RetrievalService")
+    def test_trace_key_present_in_json_envelope_with_flag(
+        self, mock_retrieval_cls, mock_llm_cls,
+    ):
+        """--trace --json adds a `trace` key to the JSON envelope."""
+        mock_retrieval_cls.return_value.retrieve_with_memory.return_value = _GOOD_RESULT
+        _mock_ask_grounded_streaming(mock_llm_cls.return_value)
+
+        result = runner.invoke(app, ["ask", "pergunta", "--json", "--trace"])
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert "trace" in data
+        assert "attempts" in data["trace"]
+        assert isinstance(data["trace"]["attempts"], list)
+
+    @patch("aurora.cli.ask.LLMService")
+    @patch("aurora.cli.ask.RetrievalService")
+    def test_trace_key_absent_in_json_envelope_without_flag(
+        self, mock_retrieval_cls, mock_llm_cls,
+    ):
+        """--json without --trace preserves today's envelope shape (no trace key)."""
+        mock_retrieval_cls.return_value.retrieve_with_memory.return_value = _GOOD_RESULT
+        _mock_ask_grounded_streaming(mock_llm_cls.return_value)
+
+        result = runner.invoke(app, ["ask", "pergunta", "--json"])
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert "trace" not in data
+
+    @pytest.mark.loop_enabled
+    @patch("aurora.cli.ask.LLMService")
+    @patch("aurora.cli.ask.RetrievalService")
+    def test_status_line_emitted_on_loop_fire(
+        self, mock_retrieval_cls, mock_llm_cls,
+    ):
+        """When the loop fires (thin->thick), 'Revisando busca...' appears in stderr.
+
+        Marked loop_enabled to opt out of the autouse pass-through orchestrator.
+        Uses real IterativeRetrievalOrchestrator + mocked LLMService where
+        reformulate_query is scripted to return a totally different query so
+        the diversity guard does not exit early.
+        """
+        from aurora.llm.service import IntentResult
+
+        # Thin attempt 1, thick attempt 2
+        thin = RetrievalResult(
+            ok=True,
+            notes=(RetrievedNote(
+                path="notas/weak.md", score=0.18, content="x" * 50,
+                source="vault", origin="hybrid",
+            ),),
+            context_text="--- notas/weak.md ---\n" + ("x" * 50),
+            insufficient_evidence=False,
+        )
+        thick = RetrievalResult(
+            ok=True,
+            notes=tuple(
+                RetrievedNote(
+                    path=f"notas/strong_{i}.md", score=0.85 - i * 0.05,
+                    content="conteudo substantivo " * 80,
+                    source="vault", origin="hybrid",
+                )
+                for i in range(3)
+            ),
+            context_text="--- ctx ---\n" + ("c" * 1500),
+            insufficient_evidence=False,
+        )
+        mock_retrieval_cls.return_value.retrieve_with_memory.side_effect = [thin, thick]
+        mock_llm_cls.return_value.classify_intent.return_value = IntentResult(
+            intent="vault", search="hybrid", terms=[],
+        )
+        mock_llm_cls.return_value.reformulate_query.return_value = (
+            "consulta totalmente diferente refinada"
+        )
+
+        def _ask_grounded(query, ctx, *, on_token):
+            on_token("ok")
+            return "ok"
+
+        mock_llm_cls.return_value.ask_grounded.side_effect = _ask_grounded
+
+        result = runner.invoke(app, ["ask", "pergunta vaga"])
+        assert result.exit_code == 0
+        assert "Revisando busca..." in (result.stderr or "")
+
+    @patch("aurora.cli.ask.LLMService")
+    @patch("aurora.cli.ask.RetrievalService")
+    def test_trace_does_not_leak_note_content_in_stderr(
+        self, mock_retrieval_cls, mock_llm_cls,
+    ):
+        """PRIV-03: SECRET in note.content never appears on stderr under --trace."""
+        mock_retrieval_cls.return_value.retrieve_with_memory.return_value = (
+            _result_with_secret_in_content()
+        )
+        _mock_ask_grounded_streaming(mock_llm_cls.return_value)
+
+        result = runner.invoke(app, ["ask", "pergunta", "--trace"])
+        assert result.exit_code == 0
+        assert _SECRET not in (result.stderr or ""), (
+            "PRIV-03 violation: secret leaked to stderr via --trace"
+        )
+
+    @patch("aurora.cli.ask.LLMService")
+    @patch("aurora.cli.ask.RetrievalService")
+    def test_trace_does_not_leak_note_content_in_json_envelope(
+        self, mock_retrieval_cls, mock_llm_cls,
+    ):
+        """PRIV-03: SECRET in note.content never appears on stdout/stderr under --trace --json.
+
+        Closes the JSON-envelope smuggle path — render_trace_json operates only
+        on AttemptTrace fields (paths/scores/counts/queries/reasons) which are
+        structurally content-free (pinned by Wave 1 _FORBIDDEN_TRACE_FIELDS).
+        """
+        mock_retrieval_cls.return_value.retrieve_with_memory.return_value = (
+            _result_with_secret_in_content()
+        )
+        _mock_ask_grounded_streaming(mock_llm_cls.return_value)
+
+        result = runner.invoke(app, ["ask", "pergunta", "--trace", "--json"])
+        assert result.exit_code == 0
+        assert _SECRET not in (result.stdout or ""), (
+            "PRIV-03 violation: secret leaked to stdout JSON envelope via --trace"
+        )
+        assert _SECRET not in (result.stderr or ""), (
+            "PRIV-03 violation: secret leaked to stderr via --trace --json"
+        )
+
+    @patch("aurora.cli.ask.LLMService")
+    @patch("aurora.cli.ask.RetrievalService")
+    def test_trace_emitted_on_insufficient_evidence_path_text_mode(
+        self, mock_retrieval_cls, mock_llm_cls,
+    ):
+        """NIT 2 / symmetry: --trace shows the trace even on insufficient_evidence path (text mode)."""
+        mock_retrieval_cls.return_value.retrieve_with_memory.return_value = _INSUFFICIENT_RESULT
+
+        result = runner.invoke(app, ["ask", "pergunta sem evidencia", "--trace"])
+        assert result.exit_code == 0
+        # Insufficient message goes to stdout
+        assert INSUFFICIENT_EVIDENCE_MSG in (result.stdout or "")
+        # Trace must STILL appear on stderr (parity with happy path)
+        assert "retrieval trace" in (result.stderr or "")
+
+    @patch("aurora.cli.ask.LLMService")
+    @patch("aurora.cli.ask.RetrievalService")
+    def test_trace_emitted_on_insufficient_evidence_path_json_mode(
+        self, mock_retrieval_cls, mock_llm_cls,
+    ):
+        """NIT 2 / symmetry: --trace --json includes `trace` key on insufficient_evidence path."""
+        mock_retrieval_cls.return_value.retrieve_with_memory.return_value = _INSUFFICIENT_RESULT
+
+        result = runner.invoke(app, ["ask", "pergunta sem evidencia", "--trace", "--json"])
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["insufficient_evidence"] is True
+        assert "trace" in data
+        assert "attempts" in data["trace"]
