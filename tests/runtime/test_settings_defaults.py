@@ -143,3 +143,92 @@ def test_telemetry_defaults_for_phase1_are_disabled():
         "AGNO_TELEMETRY": "false",
         "GRAPHITI_TELEMETRY_ENABLED": "false",
     }
+
+
+# ---------------------------------------------------------------------------
+# Iterative retrieval settings (Phase 7-01)
+# ---------------------------------------------------------------------------
+
+
+def test_iterative_retrieval_defaults_match_research():
+    s = RuntimeSettings()
+    assert s.iterative_retrieval_enabled is True
+    assert s.iterative_retrieval_judge is False
+    assert s.retrieval_min_top_score == 0.35
+    assert s.retrieval_min_hits == 2
+    assert s.retrieval_min_context_chars == 800
+    assert s.iterative_retrieval_jaccard_threshold == 0.7
+
+
+def test_retrieval_min_top_score_validator_pt_br_error():
+    from pydantic import ValidationError
+
+    # boundary valid
+    assert RuntimeSettings(retrieval_min_top_score=0.0).retrieval_min_top_score == 0.0
+    assert RuntimeSettings(retrieval_min_top_score=1.0).retrieval_min_top_score == 1.0
+    # invalid
+    with pytest.raises(ValidationError) as exc:
+        RuntimeSettings(retrieval_min_top_score=1.01)
+    assert "retrieval_min_top_score deve estar entre 0.0 e 1.0." in str(exc.value)
+    with pytest.raises(ValidationError) as exc2:
+        RuntimeSettings(retrieval_min_top_score=-0.01)
+    assert "retrieval_min_top_score deve estar entre 0.0 e 1.0." in str(exc2.value)
+
+
+def test_retrieval_min_hits_validator_pt_br_error():
+    from pydantic import ValidationError
+
+    assert RuntimeSettings(retrieval_min_hits=1).retrieval_min_hits == 1
+    assert RuntimeSettings(retrieval_min_hits=10).retrieval_min_hits == 10
+    with pytest.raises(ValidationError) as exc:
+        RuntimeSettings(retrieval_min_hits=0)
+    assert "retrieval_min_hits deve estar entre 1 e 10." in str(exc.value)
+    with pytest.raises(ValidationError) as exc2:
+        RuntimeSettings(retrieval_min_hits=11)
+    assert "retrieval_min_hits deve estar entre 1 e 10." in str(exc2.value)
+
+
+def test_retrieval_min_context_chars_validator_pt_br_error():
+    from pydantic import ValidationError
+
+    assert RuntimeSettings(retrieval_min_context_chars=100).retrieval_min_context_chars == 100
+    assert RuntimeSettings(retrieval_min_context_chars=24_000).retrieval_min_context_chars == 24_000
+    with pytest.raises(ValidationError) as exc:
+        RuntimeSettings(retrieval_min_context_chars=99)
+    assert "retrieval_min_context_chars deve estar entre 100 e 24000." in str(exc.value)
+    with pytest.raises(ValidationError) as exc2:
+        RuntimeSettings(retrieval_min_context_chars=24_001)
+    assert "retrieval_min_context_chars deve estar entre 100 e 24000." in str(exc2.value)
+
+
+def test_iterative_retrieval_jaccard_threshold_validator_pt_br_error():
+    from pydantic import ValidationError
+
+    assert RuntimeSettings(iterative_retrieval_jaccard_threshold=0.0).iterative_retrieval_jaccard_threshold == 0.0
+    assert RuntimeSettings(iterative_retrieval_jaccard_threshold=1.0).iterative_retrieval_jaccard_threshold == 1.0
+    with pytest.raises(ValidationError) as exc:
+        RuntimeSettings(iterative_retrieval_jaccard_threshold=1.01)
+    assert "iterative_retrieval_jaccard_threshold deve estar entre 0.0 e 1.0." in str(exc.value)
+    with pytest.raises(ValidationError) as exc2:
+        RuntimeSettings(iterative_retrieval_jaccard_threshold=-0.01)
+    assert "iterative_retrieval_jaccard_threshold deve estar entre 0.0 e 1.0." in str(exc2.value)
+
+
+def test_iterative_retrieval_settings_round_trip(tmp_path, monkeypatch):
+    monkeypatch.setenv("AURORA_CONFIG_DIR", str(tmp_path / "global-config"))
+    original = RuntimeSettings(
+        iterative_retrieval_enabled=False,
+        iterative_retrieval_judge=True,
+        retrieval_min_top_score=0.5,
+        retrieval_min_hits=3,
+        retrieval_min_context_chars=1200,
+        iterative_retrieval_jaccard_threshold=0.65,
+    )
+    save_settings(original)
+    reloaded = load_settings()
+    assert reloaded.iterative_retrieval_enabled is False
+    assert reloaded.iterative_retrieval_judge is True
+    assert reloaded.retrieval_min_top_score == 0.5
+    assert reloaded.retrieval_min_hits == 3
+    assert reloaded.retrieval_min_context_chars == 1200
+    assert reloaded.iterative_retrieval_jaccard_threshold == 0.65

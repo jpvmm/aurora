@@ -47,6 +47,22 @@ def config_show_command() -> None:
         f"{'ativado' if settings.kb_auto_embeddings_enabled else 'desativado'}"
     )
     typer.echo("")
+    typer.echo("Iterative retrieval:")
+    typer.echo(
+        "- loop: "
+        f"{'ativado' if settings.iterative_retrieval_enabled else 'desativado'}"
+    )
+    typer.echo(
+        "- judge LLM: "
+        f"{'ativado' if settings.iterative_retrieval_judge else 'desativado'}"
+    )
+    typer.echo(f"- min top score: {settings.retrieval_min_top_score:.2f}")
+    typer.echo(f"- min hits: {settings.retrieval_min_hits}")
+    typer.echo(f"- min context chars: {settings.retrieval_min_context_chars}")
+    typer.echo(
+        f"- jaccard threshold: {settings.iterative_retrieval_jaccard_threshold:.2f}"
+    )
+    typer.echo("")
     typer.echo("Privacidade:")
     typer.echo(f"- local-only: {'ativado' if settings.local_only else 'desativado'}")
     typer.echo(f"- telemetria: {'ativada' if settings.telemetry_enabled else 'desativada'}")

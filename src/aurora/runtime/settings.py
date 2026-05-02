@@ -42,6 +42,12 @@ class RuntimeSettings(BaseSettings):
     chat_history_max_turns: int = 10
     memory_top_k: int = 5
     memory_min_score: float = 0.25
+    iterative_retrieval_enabled: bool = True
+    iterative_retrieval_judge: bool = False
+    retrieval_min_top_score: float = 0.35
+    retrieval_min_hits: int = 2
+    retrieval_min_context_chars: int = 800
+    iterative_retrieval_jaccard_threshold: float = 0.7
 
     model_config = SettingsConfigDict(extra="ignore")
 
@@ -87,6 +93,34 @@ class RuntimeSettings(BaseSettings):
     def _validate_memory_top_k(cls, value: int) -> int:
         if value < 3 or value > 10:
             raise ValueError("memory_top_k deve estar entre 3 e 10.")
+        return value
+
+    @field_validator("retrieval_min_top_score")
+    @classmethod
+    def _validate_min_top_score(cls, value: float) -> float:
+        if value < 0.0 or value > 1.0:
+            raise ValueError("retrieval_min_top_score deve estar entre 0.0 e 1.0.")
+        return value
+
+    @field_validator("retrieval_min_hits")
+    @classmethod
+    def _validate_min_hits(cls, value: int) -> int:
+        if value < 1 or value > 10:
+            raise ValueError("retrieval_min_hits deve estar entre 1 e 10.")
+        return value
+
+    @field_validator("retrieval_min_context_chars")
+    @classmethod
+    def _validate_min_context_chars(cls, value: int) -> int:
+        if value < 100 or value > 24_000:
+            raise ValueError("retrieval_min_context_chars deve estar entre 100 e 24000.")
+        return value
+
+    @field_validator("iterative_retrieval_jaccard_threshold")
+    @classmethod
+    def _validate_jaccard_threshold(cls, value: float) -> float:
+        if value < 0.0 or value > 1.0:
+            raise ValueError("iterative_retrieval_jaccard_threshold deve estar entre 0.0 e 1.0.")
         return value
 
 

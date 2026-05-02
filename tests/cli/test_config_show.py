@@ -44,3 +44,24 @@ def test_config_show_displays_runtime_and_privacy_defaults(
     assert "index: aurora-index" in result.output.lower()
     assert "collection: aurora-collection" in result.output.lower()
     assert "auto-embeddings: desativado" in result.output.lower()
+
+
+def test_config_show_renders_iterative_retrieval_section(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("AURORA_CONFIG_DIR", str(tmp_path / "config"))
+    app_module = importlib.import_module("aurora.cli.app")
+
+    save_settings(RuntimeSettings())  # all defaults
+
+    result = RUNNER.invoke(app_module.app, ["config", "show"], prog_name="aurora")
+
+    assert result.exit_code == 0
+    assert "Iterative retrieval:" in result.output
+    assert "- loop: ativado" in result.output
+    assert "- judge LLM: desativado" in result.output
+    assert "- min top score: 0.35" in result.output
+    assert "- min hits: 2" in result.output
+    assert "- min context chars: 800" in result.output
+    assert "- jaccard threshold: 0.70" in result.output
