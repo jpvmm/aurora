@@ -12,6 +12,7 @@
 - [x] **Phase 4: Long-Term Memory Fusion** - Persist and retrieve memory, then fuse it with KB evidence. (completed 2026-04-04)
 - [ ] **Phase 5: Operational Command Surface** - Provide explicit command set and health diagnostics for daily operation.
 - [ ] **Phase 6: Runtime Profiles and Safe Observability** - Support model profile switching with privacy-safe default logs.
+- [ ] **Phase 7: Iterative Retrieval Loop** - One-reformulation rescue when first retrieval is thin: deterministic sufficiency check, LLM rewrite, visible status, opt-in `--trace`.
 
 ## Progress Table
 
@@ -23,8 +24,9 @@
 | 4. Long-Term Memory Fusion | 3/3 | Complete   | 2026-04-04 |
 | 4.1. Fix Memory Pipeline | 2/2 | Complete | 2026-04-05 |
 | 4.2. Fix Retrieval Quality | 2/2 | Complete | 2026-04-05 |
-| 5. Operational Command Surface | 0/2 | Not started | - |
+| 5. Operational Command Surface | 2/2 | Complete | 2026-04-11 |
 | 6. Runtime Profiles and Safe Observability | 0/1 | Not started | - |
+| 7. Iterative Retrieval Loop | 0/TBD | Not started | - |
 
 ## Phase Details
 
@@ -166,6 +168,23 @@ Plans:
 **Success Criteria** (what must be TRUE):
 1. User can switch model profiles via configuration/CLI without changing application code.
 2. Default logs avoid leaking sensitive note content while preserving operational diagnostics.
+**Plans**: TBD
+
+### Phase 7: Iterative Retrieval Loop
+**Goal**: When the first retrieval returns thin evidence, Aurora reformulates the query and retrieves once more (max one reformulation, max two retrievals total) before answering. Improves answer quality on vague queries, follow-ups, and ambiguous lookups without changing the user-facing answer contract.
+**Depends on**: Phase 4.2 (retrieval quality baseline — top-K=15, keyword fallback, carry-forward)
+**Requirements**: enhances RET-01, RET-03, RET-04 (no new v1 requirements — quality-improvement phase in the 04.x lineage)
+**Success Criteria** (what must be TRUE):
+1. Aurora detects "evidence is thin" before answering using a deterministic sufficiency signal (top score, hit count, assembled-context length); an LLM judge is opt-in.
+2. When evidence is thin, Aurora reformulates the query via a small non-streaming LLM call and runs exactly one more retrieval.
+3. The loop is bounded at one reformulation (max two retrievals per question) — fixed, not configurable.
+4. Loop applies on vault and memory turns in both `aurora ask` and `aurora chat`; chat-intent turns are unaffected.
+5. While the loop runs, the user sees a visible `revisando busca…` status line on stderr.
+6. `aurora ask --trace` (and `aurora chat --trace`) emits per-attempt diagnostics (query, hit count, top score, sufficiency verdict, reformulation reason) on stderr in text mode and as a `trace` key under `--json`.
+7. Reformulated queries are persisted to chat history JSONL with a `[reformulation]` prefix and are filtered out before they reach the LLM context window via `get_recent`.
+8. When the loop still produces insufficient evidence, the user gets the existing RET-04 "insufficient evidence" response — the contract is preserved.
+9. The loop can be disabled via `iterative_retrieval_enabled=false` setting; behavior then matches today's single-shot retrieval byte-for-byte.
+10. The trace surface contains paths, scores, hit counts, and queries only — never note content snippets (PRIV-03).
 **Plans**: TBD
 
 ## Coverage Validation
