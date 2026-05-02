@@ -12,7 +12,6 @@
 - [x] **Phase 4: Long-Term Memory Fusion** - Persist and retrieve memory, then fuse it with KB evidence. (completed 2026-04-04)
 - [ ] **Phase 5: Operational Command Surface** - Provide explicit command set and health diagnostics for daily operation.
 - [ ] **Phase 6: Runtime Profiles and Safe Observability** - Support model profile switching with privacy-safe default logs.
-- [ ] **Phase 7: Iterative Retrieval Loop** - Let the agent retry retrieval with a refined query when initial evidence is thin, before answering.
 
 ## Progress Table
 
@@ -24,9 +23,8 @@
 | 4. Long-Term Memory Fusion | 3/3 | Complete   | 2026-04-04 |
 | 4.1. Fix Memory Pipeline | 2/2 | Complete | 2026-04-05 |
 | 4.2. Fix Retrieval Quality | 2/2 | Complete | 2026-04-05 |
-| 5. Operational Command Surface | 2/2 | Complete | 2026-04-11 |
+| 5. Operational Command Surface | 0/2 | Not started | - |
 | 6. Runtime Profiles and Safe Observability | 0/1 | Not started | - |
-| 7. Iterative Retrieval Loop | 0/TBD | Not started | - |
 
 ## Phase Details
 
@@ -168,19 +166,6 @@ Plans:
 **Success Criteria** (what must be TRUE):
 1. User can switch model profiles via configuration/CLI without changing application code.
 2. Default logs avoid leaking sensitive note content while preserving operational diagnostics.
-**Plans**: TBD
-
-### Phase 7: Iterative Retrieval Loop
-**Goal**: Aurora retries retrieval with a refined query when initial evidence is thin, instead of answering once-and-done. Improves answer quality on vague queries, follow-ups, and ambiguous proper-noun lookups without changing the user-facing answer contract.
-**Depends on**: Phase 4.2 (retrieval quality baseline — top-K=15, keyword fallback, carry-forward)
-**Requirements**: enhances RET-01, RET-03, RET-04 (no new v1 requirements — this is a quality-improvement phase in the 04.x lineage)
-**Success Criteria** (what must be TRUE):
-1. Aurora can detect "evidence is thin" before answering, using a deterministic sufficiency signal (not pure LLM vibes).
-2. When evidence is thin, Aurora reformulates the query and retrieves once more before deciding what to do.
-3. The loop is bounded (hard cap on iterations) so latency is predictable.
-4. The loop is observable — `aurora ask --trace` shows each retrieval attempt, the sufficiency verdict, and the reformulated query.
-5. When the loop still produces insufficient evidence, the user gets the existing RET-04 "insufficient evidence" response — no degradation of that contract.
-6. Existing single-shot retrieval paths still work and stay fast for queries where the first attempt is clearly sufficient.
 **Plans**: TBD
 
 ## Coverage Validation
