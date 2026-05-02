@@ -1,11 +1,19 @@
 """LLMService — grounded Q&A, free chat, and intent classification via llama.cpp."""
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import date
 from typing import Callable
 
-from aurora.llm.prompts import INTENT_PROMPT, SUMMARIZE_SESSION_PROMPT, get_system_prompt_grounded
+from aurora.llm.prompts import (
+    INTENT_PROMPT,
+    REFORMULATION_SYSTEM_PROMPT,
+    REFORMULATION_USER_PROMPT,
+    SUFFICIENCY_JUDGE_PROMPT,
+    SUMMARIZE_SESSION_PROMPT,
+    get_system_prompt_grounded,
+)
 from aurora.llm.streaming import chat_completion_sync, stream_chat_completions
 from aurora.runtime.settings import RuntimeSettings, load_settings
 
@@ -117,6 +125,50 @@ class LLMService:
         )
         return _parse_intent_result(result)
 
+    def reformulate_query(self, original_query: str, reason: str) -> str:
+        """Generate one substantially different pt-BR query (D-05, D-06).
+
+        The LLM sees ONLY the original query and the sufficiency reason —
+        never note paths, titles, or content (privacy by construction).
+        """
+        messages = [
+            {"role": "system", "content": REFORMULATION_SYSTEM_PROMPT},
+            {
+                "role": "user",
+                "content": REFORMULATION_USER_PROMPT.format(
+                    query=original_query, reason=reason,
+                ),
+            },
+        ]
+        raw = self._sync_fn(
+            endpoint_url=self._endpoint_url,
+            model_id=self._model_id,
+            messages=messages,
+        )
+        # Clean common LLM artifacts: surrounding quotes, trailing punctuation
+        return raw.strip().strip('"').strip("'").rstrip(".?!").strip()
+
+    def judge_sufficiency(self, query: str, context_text: str) -> bool:
+        """Optional LLM judge gated by iterative_retrieval_judge=True (D-01).
+
+        Uses _parse_judge_verdict for the ambiguity policy (negative wins,
+        no-verdict fail-closed).
+        """
+        messages = [
+            {
+                "role": "user",
+                "content": SUFFICIENCY_JUDGE_PROMPT.format(
+                    query=query, context_text=context_text,
+                ),
+            },
+        ]
+        raw = self._sync_fn(
+            endpoint_url=self._endpoint_url,
+            model_id=self._model_id,
+            messages=messages,
+        )
+        return _parse_judge_verdict(raw)
+
 
 @dataclass(frozen=True)
 class IntentResult:
@@ -169,4 +221,40 @@ def _parse_intent_result(raw: str) -> IntentResult:
     return IntentResult(intent=intent, search=search, terms=terms)
 
 
-__all__ = ["LLMService", "IntentResult", "_parse_intent_result"]
+# RESEARCH §3 ambiguity policy: negative wins on tie within the first segment;
+# no-verdict (empty / off-prompt) counts as insufficient (fail-closed).
+# Conservative: an extra reformulation is cheap; missing a thin case is expensive.
+# Tokens are matched anywhere within the first segment (not anchored) so that
+# ambiguous outputs like "sim porque nao falta nada" are caught: both tokens
+# appear in the first segment -> negative wins -> False.
+_AFFIRMATIVE = re.compile(r"\b(sim|yes)\b", re.IGNORECASE)
+_NEGATIVE = re.compile(r"\b(n[aã]o|no)\b", re.IGNORECASE)
+
+
+def _parse_judge_verdict(raw: str) -> bool:
+    """Return True iff the judge's first segment affirms sufficiency.
+
+    Policy (per Phase 7 RESEARCH §3):
+      - empty / no verdict word -> False (fail-closed)
+      - negative + affirmative both present in first segment -> False (neg wins)
+      - affirmative only -> True
+    """
+    text = raw.strip()
+    if not text:
+        return False
+    first_segment = re.split(r"[.\n!?]", text, maxsplit=1)[0].strip()
+    has_neg = bool(_NEGATIVE.search(first_segment))
+    has_aff = bool(_AFFIRMATIVE.search(first_segment))
+    if has_neg:
+        return False
+    if has_aff:
+        return True
+    return False
+
+
+__all__ = [
+    "LLMService",
+    "IntentResult",
+    "_parse_intent_result",
+    "_parse_judge_verdict",
+]

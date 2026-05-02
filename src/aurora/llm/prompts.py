@@ -135,6 +135,46 @@ Conversa:
 {conversation}"""
 
 
+REFORMULATION_SYSTEM_PROMPT = """Voce reformula consultas para uma base de conhecimento pessoal.
+
+Sua tarefa: dada uma consulta original que retornou poucos resultados, gerar UMA nova consulta substancialmente diferente que tenha mais chance de encontrar evidencia relevante.
+
+Estrategias possiveis:
+- Trocar termos amplos por especificos (ou vice-versa)
+- Reformular como pergunta direta vs descritiva
+- Usar sinonimos ou termos relacionados em pt-BR
+- Adicionar contexto temporal ou tematico implicito
+
+Regras:
+- Responda APENAS com a consulta reformulada, sem explicacao, sem prefixo, sem aspas
+- Maximo 15 palavras
+- Sempre em pt-BR
+- NUNCA repita a consulta original literalmente"""
+
+
+REFORMULATION_USER_PROMPT = """Consulta original: {query}
+
+Motivo da reformulacao: {reason}
+
+Reformule:"""
+
+
+SUFFICIENCY_JUDGE_PROMPT = """Voce e um juiz de suficiencia de contexto.
+
+Pergunta original: {query}
+
+Contexto recuperado:
+{context_text}
+
+O contexto acima e suficiente para responder a pergunta de forma fundamentada e citavel?
+
+Responda APENAS na primeira linha:
+sim - se o contexto basta
+nao - se falta informacao essencial
+
+Nao explique. Nao reformule. Apenas: sim ou nao."""
+
+
 _MEMORY_FIRST_BASE = """Voce e Aurora, um assistente pessoal privado.
 {date_context}
 O usuario esta perguntando sobre conversas anteriores. Priorize as memorias e cite a data da sessao.
@@ -186,6 +226,9 @@ __all__ = [
     "INTENT_PROMPT",
     "INSUFFICIENT_EVIDENCE_MSG",
     "SUMMARIZE_SESSION_PROMPT",
+    "REFORMULATION_SYSTEM_PROMPT",
+    "REFORMULATION_USER_PROMPT",
+    "SUFFICIENCY_JUDGE_PROMPT",
     "build_system_prompt_with_preferences",
     "get_system_prompt_memory_first",
 ]
