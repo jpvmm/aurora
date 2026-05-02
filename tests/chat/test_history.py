@@ -175,3 +175,65 @@ class TestChatHistoryClear:
         history = ChatHistory(path=tmp_path / "nonexistent.jsonl")
         # Should not raise
         history.clear()
+
+
+class TestGetRecentFiltersReformulations:
+    """D-10 + RESEARCH §7: reformulation entries persist but never reach LLM context."""
+
+    def test_reformulation_appears_in_jsonl_after_thin_then_thick(self, tmp_path: Path) -> None:
+        """[reformulation] system entry persists to disk (D-10 part a)."""
+        history = ChatHistory(path=tmp_path / "h.jsonl")
+        history.append_turn("user", "primeira pergunta")
+        history.append_turn("system", "[reformulation] segunda forma da pergunta")
+        history.append_turn("assistant", "resposta")
+        records = history.load()
+        assert any(
+            r["role"] == "system" and r["content"].startswith("[reformulation] ")
+            for r in records
+        )
+
+    def test_get_recent_excludes_reformulation_entries(self, tmp_path: Path) -> None:
+        """get_recent never returns [reformulation] system records (D-10 part b)."""
+        history = ChatHistory(path=tmp_path / "h.jsonl")
+        history.append_turn("user", "q1")
+        history.append_turn("system", "[reformulation] q1 reformulada")
+        history.append_turn("assistant", "a1")
+        recent = history.get_recent(max_turns=10)
+        assert all(
+            not (m["role"] == "system" and m["content"].startswith("[reformulation] "))
+            for m in recent
+        )
+
+    def test_filter_happens_before_slice(self, tmp_path: Path) -> None:
+        """Reformulations must NOT steal slots from real pairs (RESEARCH §7).
+
+        Write 5 user/assistant pairs interleaved with 3 reformulation system
+        entries; max_turns=3 must yield exactly 3 user + 3 assistant records
+        (the 3 LAST pairs), zero reformulation records.
+        """
+        history = ChatHistory(path=tmp_path / "h.jsonl")
+        for i in range(5):
+            history.append_turn("user", f"q{i}")
+            history.append_turn("assistant", f"a{i}")
+            if i in (1, 2, 3):
+                history.append_turn("system", f"[reformulation] q{i} reformulada")
+        recent = history.get_recent(max_turns=3)
+        user_msgs = [m for m in recent if m["role"] == "user"]
+        assistant_msgs = [m for m in recent if m["role"] == "assistant"]
+        assert len(user_msgs) == 3
+        assert len(assistant_msgs) == 3
+        assert user_msgs[-1]["content"] == "q4"
+        assert all(
+            not (m["role"] == "system" and m["content"].startswith("[reformulation] "))
+            for m in recent
+        )
+
+    def test_no_reformulations_present_returns_unchanged(self, tmp_path: Path) -> None:
+        """Pure-additive: no reformulations -> behavior identical to today."""
+        history = ChatHistory(path=tmp_path / "h.jsonl")
+        history.append_turn("user", "q")
+        history.append_turn("assistant", "a")
+        recent = history.get_recent(max_turns=10)
+        assert len(recent) == 2
+        assert recent[0]["content"] == "q"
+        assert recent[1]["content"] == "a"

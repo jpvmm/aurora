@@ -9,6 +9,17 @@ from aurora.runtime.paths import get_config_dir
 
 HISTORY_FILENAME = "chat_history.jsonl"
 
+_REFORMULATION_PREFIX = "[reformulation] "
+
+
+def _is_reformulation_entry(record: dict[str, str]) -> bool:
+    """Return True iff record is a system-role [reformulation] entry (D-10)."""
+    return (
+        record.get("role") == "system"
+        and isinstance(record.get("content"), str)
+        and record["content"].startswith(_REFORMULATION_PREFIX)
+    )
+
 
 class ChatHistory:
     """Persists conversation turns as JSONL records with role, content, and timestamp."""
@@ -47,10 +58,19 @@ class ChatHistory:
         Each turn = 1 user + 1 assistant = 2 messages.
         So max_messages = max_turns * 2.
         Returns only role and content fields (strips ts for LLM consumption).
+
+        System-role records prefixed with `[reformulation] ` (D-10) are filtered
+        out BEFORE the max-turns slice so they never steal slots from real
+        conversation pairs (RESEARCH §7 — pin: TestGetRecentFiltersReformulations).
         """
         all_records = self.load()
+        conversational = [r for r in all_records if not _is_reformulation_entry(r)]
         max_messages = max_turns * 2
-        recent = all_records[-max_messages:] if len(all_records) > max_messages else all_records
+        recent = (
+            conversational[-max_messages:]
+            if len(conversational) > max_messages
+            else conversational
+        )
         return [{"role": r["role"], "content": r["content"]} for r in recent]
 
     def clear(self) -> None:
@@ -59,4 +79,9 @@ class ChatHistory:
             self.path.unlink()
 
 
-__all__ = ["ChatHistory", "HISTORY_FILENAME"]
+__all__ = [
+    "ChatHistory",
+    "HISTORY_FILENAME",
+    "_REFORMULATION_PREFIX",
+    "_is_reformulation_entry",
+]
