@@ -48,7 +48,7 @@ def _make_session(
         history=history,
         retrieval=mock_retrieval,
         llm=mock_llm,
-        settings_loader=lambda: _mock_settings(),
+        settings_loader=_disabled_iterative_settings_loader,
         on_token=lambda t: None,
         on_insufficient=lambda msg: None,
     )
@@ -59,6 +59,19 @@ def _mock_settings() -> MagicMock:
     settings = MagicMock()
     settings.chat_history_max_turns = 10
     return settings
+
+
+def _disabled_iterative_settings_loader():
+    """Default settings loader for existing ChatSession tests.
+
+    Phase 7 wires IterativeRetrievalOrchestrator into ChatSession. Existing
+    tests don't script reformulation/judge LLM calls and would crash if the
+    loop fires — disable the loop here so existing behavior matches today's
+    single-shot (D-11). Tests that EXPLICITLY exercise the loop pass their
+    own settings_loader.
+    """
+    from aurora.runtime.settings import RuntimeSettings
+    return RuntimeSettings(iterative_retrieval_enabled=False)
 
 
 class TestChatSessionVaultIntent:
@@ -145,7 +158,7 @@ class TestChatSessionChatIntent:
             history=history,
             retrieval=MagicMock(),
             llm=mock_llm,
-            settings_loader=lambda: _mock_settings(),  # max_turns=10
+            settings_loader=_disabled_iterative_settings_loader,  # max_turns=10
             on_token=lambda t: None,
         )
         session.process_turn("nova pergunta")
@@ -191,7 +204,7 @@ class TestChatSessionHistoryPersistence:
             history=history,
             retrieval=MagicMock(),
             llm=mock_llm,
-            settings_loader=lambda: _mock_settings(),
+            settings_loader=_disabled_iterative_settings_loader,
             on_token=lambda t: None,
         )
         session.process_turn("ola")
@@ -210,7 +223,7 @@ class TestChatSessionHistoryPersistence:
             history=history,
             retrieval=MagicMock(),
             llm=mock_llm,
-            settings_loader=lambda: _mock_settings(),
+            settings_loader=_disabled_iterative_settings_loader,
             on_token=lambda t: None,
         )
         session.process_turn("pergunta")
@@ -229,7 +242,7 @@ class TestChatSessionHistoryPersistence:
             history=history,
             retrieval=MagicMock(),
             llm=mock_llm,
-            settings_loader=lambda: _mock_settings(),
+            settings_loader=_disabled_iterative_settings_loader,
             on_token=lambda t: None,
         )
         session.process_turn("hello")
@@ -255,7 +268,7 @@ class TestChatSessionInsufficientEvidence:
             history=history,
             retrieval=mock_retrieval,
             llm=mock_llm,
-            settings_loader=lambda: _mock_settings(),
+            settings_loader=_disabled_iterative_settings_loader,
             on_token=lambda t: None,
             on_insufficient=on_insufficient,
         )
@@ -275,7 +288,7 @@ class TestChatSessionInsufficientEvidence:
             history=history,
             retrieval=mock_retrieval,
             llm=mock_llm,
-            settings_loader=lambda: _mock_settings(),
+            settings_loader=_disabled_iterative_settings_loader,
             on_token=lambda t: None,
         )
         session.process_turn("o que e X?")
@@ -293,7 +306,7 @@ class TestChatSessionInsufficientEvidence:
             history=history,
             retrieval=mock_retrieval,
             llm=mock_llm,
-            settings_loader=lambda: _mock_settings(),
+            settings_loader=_disabled_iterative_settings_loader,
             on_token=lambda t: None,
         )
         result = session.process_turn("pergunta sem evidencia")
@@ -318,7 +331,7 @@ class TestChatSessionMemoryBackend:
         session = ChatSession(
             history=history,
             llm=mock_llm,
-            settings_loader=lambda: _mock_settings(),
+            settings_loader=_disabled_iterative_settings_loader,
             on_token=lambda t: None,
             memory_backend=mock_memory_backend,
         )
@@ -351,7 +364,7 @@ class TestChatSessionMemoryBackend:
             history=history,
             retrieval=mock_retrieval,
             llm=mock_llm,
-            settings_loader=lambda: _mock_settings(),
+            settings_loader=_disabled_iterative_settings_loader,
             on_token=lambda t: None,
         )
         session.process_turn("o que e Python?")
@@ -392,7 +405,7 @@ class TestChatSessionMemoryIntent:
             history=history,
             retrieval=mock_retrieval,
             llm=mock_llm,
-            settings_loader=lambda: _mock_settings(),
+            settings_loader=_disabled_iterative_settings_loader,
             on_token=lambda t: None,
             on_insufficient=lambda msg: None,
         )
@@ -441,7 +454,7 @@ class TestChatSessionMemoryIntent:
             history=history,
             retrieval=mock_retrieval,
             llm=mock_llm,
-            settings_loader=lambda: _mock_settings(),
+            settings_loader=_disabled_iterative_settings_loader,
             on_token=lambda t: None,
         )
         session.process_turn("o que escrevi sobre Python?")
@@ -491,7 +504,7 @@ class TestCarryForward:
             history=history,
             retrieval=mock_retrieval,
             llm=mock_llm,
-            settings_loader=lambda: _mock_settings(),
+            settings_loader=_disabled_iterative_settings_loader,
             on_token=lambda t: None,
             on_insufficient=lambda msg: None,
         )
@@ -532,7 +545,7 @@ class TestCarryForward:
             history=history,
             retrieval=mock_retrieval,
             llm=mock_llm,
-            settings_loader=lambda: _mock_settings(),
+            settings_loader=_disabled_iterative_settings_loader,
             on_token=lambda t: None,
             on_insufficient=lambda msg: None,
         )
@@ -564,7 +577,7 @@ class TestCarryForward:
             history=history,
             retrieval=mock_retrieval,
             llm=mock_llm,
-            settings_loader=lambda: _mock_settings(),
+            settings_loader=_disabled_iterative_settings_loader,
             on_token=lambda t: None,
             on_insufficient=lambda msg: None,
         )
@@ -600,7 +613,7 @@ class TestCarryForward:
             history=history,
             retrieval=mock_retrieval,
             llm=mock_llm,
-            settings_loader=lambda: _mock_settings(),
+            settings_loader=_disabled_iterative_settings_loader,
             on_token=lambda t: None,
             on_insufficient=lambda msg: None,
         )
@@ -657,7 +670,7 @@ class TestCarryForward:
             history=history,
             retrieval=mock_retrieval,
             llm=mock_llm,
-            settings_loader=lambda: _mock_settings(),
+            settings_loader=_disabled_iterative_settings_loader,
             on_token=lambda t: None,
             on_insufficient=lambda msg: None,
         )
@@ -667,3 +680,359 @@ class TestCarryForward:
         # Should not raise and should produce a valid response
         result = session.process_turn("segunda pergunta")
         assert result == "resposta"  # Normal response, no crash
+
+
+# ---------------------------------------------------------------------------
+# Phase 7 integration tests — orchestrator wiring, status, persistence,
+# disable-path byte-equivalence, carry-forward composition.
+# ---------------------------------------------------------------------------
+
+from dataclasses import dataclass, field
+
+from aurora.retrieval.contracts import IterativeRetrievalTrace
+from aurora.retrieval.iterative import IterativeRetrievalOrchestrator
+from aurora.runtime.settings import RuntimeSettings
+
+
+@dataclass
+class _ChatFakeLLM:
+    """Minimal scripted LLM for chat-session integration tests.
+
+    Mirrors the surface IterativeRetrievalOrchestrator uses (reformulate_query,
+    judge_sufficiency) plus the chat-session surface (classify_intent, chat_turn).
+    Lives here (not in tests/retrieval/fakes.py) because cross-package fake reuse
+    would require either adding tests/__init__.py + switching wave-2's relative
+    imports to absolute, or duplicating; we picked duplication for the smallest
+    diff (option a from wave-2 handoff).
+    """
+    reformulations: list[str] = field(default_factory=list)
+    judge_verdicts: list[bool] = field(default_factory=list)
+    reformulate_calls: list[tuple[str, str]] = field(default_factory=list)
+    judge_calls: list[tuple[str, str]] = field(default_factory=list)
+    chat_response: str = "resposta"
+
+    def reformulate_query(self, original_query: str, reason: str) -> str:
+        self.reformulate_calls.append((original_query, reason))
+        idx = len(self.reformulate_calls) - 1
+        if idx >= len(self.reformulations):
+            raise AssertionError(
+                f"_ChatFakeLLM.reformulate_query call #{idx + 1} not scripted"
+            )
+        return self.reformulations[idx]
+
+    def judge_sufficiency(self, query: str, context_text: str) -> bool:
+        self.judge_calls.append((query, context_text))
+        idx = len(self.judge_calls) - 1
+        if idx >= len(self.judge_verdicts):
+            raise AssertionError(
+                f"_ChatFakeLLM.judge_sufficiency call #{idx + 1} not scripted"
+            )
+        return self.judge_verdicts[idx]
+
+    def classify_intent(self, message: str):
+        return _intent("vault")
+
+    def chat_turn(self, messages, on_token=None):
+        if on_token:
+            on_token(self.chat_response)
+        return self.chat_response
+
+
+def _thin_result() -> RetrievalResult:
+    """Single hybrid hit, low score, short context — fails sufficiency floors."""
+    note = RetrievedNote(
+        path="notas/weak.md", score=0.18, content="x" * 50,
+        source="vault", origin="hybrid",
+    )
+    return RetrievalResult(
+        ok=True, notes=(note,),
+        context_text="--- notas/weak.md ---\n" + ("x" * 50),
+        insufficient_evidence=False,
+    )
+
+
+def _thick_result(*, n_notes: int = 3) -> RetrievalResult:
+    """Multi-note hybrid result that passes deterministic sufficiency."""
+    notes = tuple(
+        RetrievedNote(
+            path=f"notas/strong_{i}.md", score=0.85 - i * 0.05,
+            content="conteudo substantivo " * 80,
+            source="vault", origin="hybrid",
+        )
+        for i in range(n_notes)
+    )
+    context = "\n".join(f"--- {n.path} ---\n{n.content}" for n in notes)
+    return RetrievalResult(
+        ok=True, notes=notes, context_text=context, insufficient_evidence=False,
+    )
+
+
+class TestPhase7Integration:
+    """Pin D-02, D-04, D-07, D-08, D-10, D-11 at the integration level."""
+
+    def test_carry_forward_composes_once_not_per_attempt(self, tmp_path: Path) -> None:
+        """D-07 / RESEARCH §pitfalls 2: carry-forward applied once before orchestrator.
+
+        The orchestrator MUST receive the carry-forward-augmented result via
+        first_attempt; ChatSession's _apply_carry_forward must NOT be invoked
+        again for attempt 2 (the orchestrator never sees the carry-forward path).
+        """
+        history = ChatHistory(path=tmp_path / "h.jsonl")
+        mock_retrieval = MagicMock()
+        mock_retrieval._memory_backend = None
+        mock_retrieval.retrieve.return_value = _thick_result()
+
+        spy_calls: list[tuple[str, RetrievalResult | None]] = []
+
+        class _SpyOrch:
+            def run(self, query, *, intent, retrieve_fn, search_strategy,
+                    search_terms, first_attempt=None):
+                spy_calls.append((query, first_attempt))
+                return first_attempt or _thick_result(), IterativeRetrievalTrace(
+                    attempts=(), judge_enabled=False,
+                )
+
+        spy = _SpyOrch()
+        mock_llm = MagicMock()
+        mock_llm.classify_intent.return_value = _intent("vault")
+        mock_llm.chat_turn.return_value = "ans"
+
+        session = ChatSession(
+            history=history, retrieval=mock_retrieval,
+            llm=mock_llm,
+            settings_loader=_disabled_iterative_settings_loader,
+            on_status=lambda _msg: None,
+            on_token=lambda _t: None,
+            orchestrator=spy,
+        )
+        session.process_turn("q")
+        assert len(spy_calls) == 1
+        assert spy_calls[0][1] is not None  # first_attempt was passed
+
+    def test_visible_status_line_emitted_when_loop_fires(self, tmp_path: Path) -> None:
+        """D-02: 'Revisando busca...' on stderr exactly once when loop fires."""
+        status_calls: list[str] = []
+        history = ChatHistory(path=tmp_path / "h.jsonl")
+
+        # Real orchestrator with FakeLLM scripted to return a different reformulation
+        # so the Jaccard guard does not fire and the loop runs both attempts.
+        fake_llm = _ChatFakeLLM(
+            reformulations=["consulta totalmente diferente refinada"],
+        )
+        # Retrieval: thin attempt 1, thick attempt 2 (orchestrator drives both)
+        mock_retrieval = MagicMock()
+        mock_retrieval._memory_backend = None
+        mock_retrieval.retrieve.side_effect = [_thin_result(), _thick_result()]
+        mock_retrieval._backend = MagicMock()
+        mock_retrieval._backend.fetch.return_value = None  # no carry-forward content
+        mock_retrieval._assemble_context = MagicMock(return_value="ctx")
+
+        orch = IterativeRetrievalOrchestrator(
+            llm=fake_llm,
+            settings_loader=lambda: RuntimeSettings(),  # iterative enabled by default
+            on_status=status_calls.append,
+        )
+        # ChatSession's classify_intent + chat_turn are still on the LLM —
+        # use a separate MagicMock for the chat-session llm slot
+        chat_llm = MagicMock()
+        chat_llm.classify_intent.return_value = _intent("vault")
+        chat_llm.chat_turn.return_value = "ans"
+
+        session = ChatSession(
+            history=history, retrieval=mock_retrieval,
+            llm=chat_llm,
+            settings_loader=lambda: RuntimeSettings(),
+            on_status=status_calls.append,
+            on_token=lambda _t: None,
+            orchestrator=orch,
+        )
+        session.process_turn("q")
+        # Revisando busca... must appear exactly once (D-02)
+        assert status_calls.count("Revisando busca...") == 1
+
+    def test_reformulation_persisted_to_history(self, tmp_path: Path) -> None:
+        """D-10 (integration): [reformulation] entry in JSONL after thin->thick."""
+        history = ChatHistory(path=tmp_path / "h.jsonl")
+        fake_llm = _ChatFakeLLM(
+            reformulations=["consulta totalmente diferente refinada"],
+        )
+        mock_retrieval = MagicMock()
+        mock_retrieval._memory_backend = None
+        mock_retrieval.retrieve.side_effect = [_thin_result(), _thick_result()]
+        mock_retrieval._backend = MagicMock()
+        mock_retrieval._backend.fetch.return_value = None
+        mock_retrieval._assemble_context = MagicMock(return_value="ctx")
+
+        orch = IterativeRetrievalOrchestrator(
+            llm=fake_llm,
+            settings_loader=lambda: RuntimeSettings(),
+            on_status=lambda _msg: None,
+        )
+        chat_llm = MagicMock()
+        chat_llm.classify_intent.return_value = _intent("vault")
+        chat_llm.chat_turn.return_value = "ans"
+
+        session = ChatSession(
+            history=history, retrieval=mock_retrieval,
+            llm=chat_llm,
+            settings_loader=lambda: RuntimeSettings(),
+            on_status=lambda _msg: None,
+            on_token=lambda _t: None,
+            orchestrator=orch,
+        )
+        session.process_turn("q")
+
+        records = history.load()
+        assert any(
+            r["role"] == "system" and r["content"].startswith("[reformulation] ")
+            for r in records
+        )
+
+    def test_get_recent_excludes_reformulations_after_loop(self, tmp_path: Path) -> None:
+        """D-10 (integration smoke): get_recent never returns reformulation entries
+        after the loop has actually persisted them through the real ChatSession path."""
+        history = ChatHistory(path=tmp_path / "h.jsonl")
+        fake_llm = _ChatFakeLLM(
+            reformulations=["consulta totalmente diferente refinada"],
+        )
+        mock_retrieval = MagicMock()
+        mock_retrieval._memory_backend = None
+        mock_retrieval.retrieve.side_effect = [_thin_result(), _thick_result()]
+        mock_retrieval._backend = MagicMock()
+        mock_retrieval._backend.fetch.return_value = None
+        mock_retrieval._assemble_context = MagicMock(return_value="ctx")
+
+        orch = IterativeRetrievalOrchestrator(
+            llm=fake_llm,
+            settings_loader=lambda: RuntimeSettings(),
+            on_status=lambda _msg: None,
+        )
+        chat_llm = MagicMock()
+        chat_llm.classify_intent.return_value = _intent("vault")
+        chat_llm.chat_turn.return_value = "ans"
+
+        session = ChatSession(
+            history=history, retrieval=mock_retrieval,
+            llm=chat_llm,
+            settings_loader=lambda: RuntimeSettings(),
+            on_status=lambda _msg: None,
+            on_token=lambda _t: None,
+            orchestrator=orch,
+        )
+        session.process_turn("q")
+        recent = history.get_recent(max_turns=10)
+        assert all(
+            not (m["role"] == "system" and m["content"].startswith("[reformulation] "))
+            for m in recent
+        )
+
+    def test_disable_path_byte_equivalent(self, tmp_path: Path) -> None:
+        """D-11 + RESEARCH §6: byte-equivalent to single-shot when disabled.
+
+        Zero LLM rescue calls, zero [reformulation] history entries, single retrieve call.
+        """
+        history = ChatHistory(path=tmp_path / "h.jsonl")
+        fake_llm = _ChatFakeLLM()  # No scripted responses -> AssertionError on any call
+        mock_retrieval = MagicMock()
+        mock_retrieval._memory_backend = None
+        # Even a thin result does NOT trigger the loop in disabled mode
+        mock_retrieval.retrieve.return_value = _thin_result()
+
+        orch = IterativeRetrievalOrchestrator(
+            llm=fake_llm,
+            settings_loader=_disabled_iterative_settings_loader,
+            on_status=lambda _msg: None,
+        )
+        chat_llm = MagicMock()
+        chat_llm.classify_intent.return_value = _intent("vault")
+        chat_llm.chat_turn.return_value = "ans"
+
+        session = ChatSession(
+            history=history, retrieval=mock_retrieval,
+            llm=chat_llm,
+            settings_loader=_disabled_iterative_settings_loader,
+            on_status=lambda _msg: None,
+            on_token=lambda _t: None,
+            orchestrator=orch,
+        )
+        session.process_turn("q")
+
+        # Single retrieval call (no rescue retry), no reformulation/judge LLM calls
+        assert mock_retrieval.retrieve.call_count == 1
+        assert fake_llm.reformulate_calls == []
+        assert fake_llm.judge_calls == []
+        recs = history.load()
+        assert all(
+            not (r["role"] == "system" and r["content"].startswith("[reformulation] "))
+            for r in recs
+        )
+
+    def test_last_trace_consumer_invoked_with_trace(self, tmp_path: Path) -> None:
+        """trace consumer (set by CLI for --trace) receives the orchestrator's trace."""
+        history = ChatHistory(path=tmp_path / "h.jsonl")
+        mock_retrieval = MagicMock()
+        mock_retrieval._memory_backend = None
+        mock_retrieval.retrieve.return_value = _thick_result()
+
+        captured: list[IterativeRetrievalTrace] = []
+
+        chat_llm = MagicMock()
+        chat_llm.classify_intent.return_value = _intent("vault")
+        chat_llm.chat_turn.return_value = "ans"
+
+        session = ChatSession(
+            history=history, retrieval=mock_retrieval,
+            llm=chat_llm,
+            settings_loader=_disabled_iterative_settings_loader,
+            on_status=lambda _msg: None,
+            on_token=lambda _t: None,
+            last_trace_consumer=captured.append,
+        )
+        session.process_turn("q")
+        assert len(captured) == 1
+        assert isinstance(captured[0], IterativeRetrievalTrace)
+        # Disabled mode -> exactly one attempt with disabled exit reason
+        assert len(captured[0].attempts) == 1
+        assert captured[0].early_exit_reason == "disabled"
+
+    def test_carry_forward_origin_tagged_carry(self, tmp_path: Path) -> None:
+        """RESEARCH §2 + D-07: carry-forward supplements MUST be tagged origin='carry'.
+
+        Wave 1 left them defaulting to 'hybrid' which broke the sufficiency
+        primitive's hybrid-only top-score check. This pins the explicit tag.
+        """
+        history = ChatHistory(path=tmp_path / "h.jsonl")
+        mock_retrieval = MagicMock()
+        mock_retrieval._memory_backend = None
+        mock_retrieval._backend = MagicMock()
+        mock_retrieval._backend.fetch.return_value = "carry content"
+        mock_retrieval._assemble_context = MagicMock(return_value="ctx")
+
+        chat_llm = MagicMock()
+        chat_llm.classify_intent.return_value = _intent("vault")
+        chat_llm.chat_turn.return_value = "ans"
+
+        session = ChatSession(
+            history=history, retrieval=mock_retrieval,
+            llm=chat_llm,
+            settings_loader=_disabled_iterative_settings_loader,
+            on_status=lambda _msg: None,
+            on_token=lambda _t: None,
+        )
+        # Seed carry-forward state with a path
+        session._last_retrieved_paths = ["notas/seed.md"]
+        # Fresh retrieval returns a different note (so seed becomes a supplement)
+        fresh = RetrievalResult(
+            ok=True,
+            notes=(
+                RetrievedNote(
+                    path="notas/fresh.md", score=0.9, content="x" * 800,
+                    source="vault", origin="hybrid",
+                ),
+            ),
+            context_text="ctx", insufficient_evidence=False,
+        )
+        result = session._apply_carry_forward(fresh)
+        carry_notes = [n for n in result.notes if n.origin == "carry"]
+        assert len(carry_notes) == 1
+        assert carry_notes[0].path == "notas/seed.md"

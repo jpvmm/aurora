@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 from typing import Callable
 
-from aurora.chat.history import ChatHistory
+from aurora.chat.history import _REFORMULATION_PREFIX, ChatHistory
 from aurora.llm.prompts import (
     INSUFFICIENT_EVIDENCE_MSG,
     build_system_prompt_with_preferences,
@@ -14,7 +14,12 @@ from aurora.llm.prompts import (
     get_system_prompt_memory_first,
 )
 from aurora.llm.service import LLMService
-from aurora.retrieval.contracts import RetrievalResult, RetrievedNote
+from aurora.retrieval.contracts import (
+    IterativeRetrievalTrace,
+    RetrievalResult,
+    RetrievedNote,
+)
+from aurora.retrieval.iterative import IterativeRetrievalOrchestrator
 from aurora.retrieval.qmd_search import QMDSearchBackend
 from aurora.retrieval.service import RetrievalService
 from aurora.runtime.paths import get_preferences_path
@@ -46,6 +51,8 @@ class ChatSession:
         on_insufficient: Callable[[str], None] | None = None,
         on_status: Callable[[str], None] | None = None,
         memory_backend: QMDSearchBackend | None = None,
+        orchestrator: IterativeRetrievalOrchestrator | None = None,
+        last_trace_consumer: Callable[[IterativeRetrievalTrace], None] | None = None,
     ) -> None:
         settings = settings_loader()
         self._history = history or ChatHistory()
@@ -64,6 +71,16 @@ class ChatSession:
         self._preferences_path = get_preferences_path()
         # Carry-forward state: paths from the previous vault/memory turn (per D-08, D-09, D-10)
         self._last_retrieved_paths: list[str] = []
+        # Phase 7: iterative retrieval orchestrator (D-04, D-07, D-08).
+        # ChatSession applies _apply_carry_forward ONCE before invoking the loop
+        # and passes the augmented result via `first_attempt`; the orchestrator
+        # never re-applies carry-forward.
+        self._orchestrator = orchestrator or IterativeRetrievalOrchestrator(
+            llm=self._llm,
+            settings_loader=settings_loader,
+            on_status=self._on_status,
+        )
+        self._last_trace_consumer = last_trace_consumer
 
     @property
     def turn_count(self) -> int:
@@ -124,7 +141,15 @@ class ChatSession:
             if content is None:
                 logger.debug("_apply_carry_forward: skipping %s (fetch returned None)", path)
                 continue
-            supplements.append(RetrievedNote(path=path, score=0.0, content=content, source="vault"))
+            supplements.append(
+                RetrievedNote(
+                    path=path,
+                    score=0.0,
+                    content=content,
+                    source="vault",
+                    origin="carry",
+                )
+            )
 
         if not supplements:
             return result
@@ -137,6 +162,19 @@ class ChatSession:
             context_text=context_text,
             insufficient_evidence=False,
         )
+
+    def _persist_reformulations(self, trace: IterativeRetrievalTrace) -> None:
+        """Append [reformulation] system entries for every attempt >= 2 (D-10).
+
+        Uses kwarg form (RESEARCH §pitfalls 4) and the canonical _REFORMULATION_PREFIX
+        constant from aurora.chat.history so the get_recent filter picks them up.
+        """
+        for attempt in trace.attempts:
+            if attempt.attempt_number >= 2:
+                self._history.append_turn(
+                    role="system",
+                    content=f"{_REFORMULATION_PREFIX}{attempt.query}",
+                )
 
     def process_turn(self, user_message: str) -> str:
         """Process a single user turn through intent classification and routing.
@@ -191,8 +229,35 @@ class ChatSession:
             [(n.path, n.score) for n in result.notes],
         )
 
-        # Apply carry-forward supplements from previous turn (per D-09), before insufficient check
+        # Apply carry-forward supplements from previous turn (per D-09), before insufficient check.
+        # IMPORTANT: carry-forward composes ONCE here, never inside the loop (D-07).
         result = self._apply_carry_forward(result)
+
+        # Iterative retrieval loop (D-04, D-07): hand the carry-forward-augmented
+        # result to the orchestrator as `first_attempt`. The orchestrator uses the
+        # closure below to fetch attempt #2 if attempt #1 is insufficient.
+        def _retrieve_for_loop(q, *, search_strategy, search_terms):
+            if self._retrieval._memory_backend is not None:
+                return self._retrieval.retrieve_with_memory(
+                    q, search_strategy=search_strategy, search_terms=search_terms,
+                )
+            return self._retrieval.retrieve(
+                q, search_strategy=search_strategy, search_terms=search_terms,
+            )
+
+        result, trace = self._orchestrator.run(
+            user_message,
+            intent="vault",
+            retrieve_fn=_retrieve_for_loop,
+            search_strategy=search_strategy,
+            search_terms=search_terms,
+            first_attempt=result,
+        )
+
+        # D-10 persistence + trace handoff for --trace consumers
+        self._persist_reformulations(trace)
+        if self._last_trace_consumer is not None:
+            self._last_trace_consumer(trace)
 
         # Update carry-forward state (per D-08, D-10): cap at 3, even if insufficient (empty notes)
         self._last_retrieved_paths = [n.path for n in result.notes][:3]
@@ -238,8 +303,30 @@ class ChatSession:
             [(n.path, n.score) for n in result.notes],
         )
 
-        # Apply carry-forward supplements from previous turn (per D-09), before insufficient check
+        # Apply carry-forward supplements from previous turn (per D-09), before insufficient check.
+        # IMPORTANT: carry-forward composes ONCE here, never inside the loop (D-07).
         result = self._apply_carry_forward(result)
+
+        # Iterative retrieval loop (D-04, D-07): pass carry-forward-augmented
+        # result as first_attempt. retrieve_fn closes over retrieve_memory_first.
+        def _retrieve_for_loop(q, *, search_strategy, search_terms):
+            return self._retrieval.retrieve_memory_first(
+                q, search_strategy=search_strategy, search_terms=search_terms,
+            )
+
+        result, trace = self._orchestrator.run(
+            user_message,
+            intent="memory",
+            retrieve_fn=_retrieve_for_loop,
+            search_strategy=search_strategy,
+            search_terms=search_terms,
+            first_attempt=result,
+        )
+
+        # D-10 persistence + trace handoff for --trace consumers
+        self._persist_reformulations(trace)
+        if self._last_trace_consumer is not None:
+            self._last_trace_consumer(trace)
 
         # Update carry-forward state (per D-08, D-10): cap at 3, even if insufficient (empty notes)
         self._last_retrieved_paths = [n.path for n in result.notes][:3]
