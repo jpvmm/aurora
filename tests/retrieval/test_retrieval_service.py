@@ -683,7 +683,13 @@ class TestSearchStrategy:
         backend.keyword_search.assert_not_called()
 
     def test_retrieve_deduplicates_both_strategy_results(self):
-        """When same path returned by both strategies, keep highest score."""
+        """When same path returned by both strategies, keep the hybrid hit (Phase 7-01).
+
+        Cross-origin dedup intentionally prefers semantic (hybrid) over BM25 (keyword)
+        because hybrid scores are calibrated 0.0..1.0 while BM25 is unbounded — the
+        sufficiency primitive's top-score check is meaningful only against hybrid hits
+        (RESEARCH §2). Prior behavior (highest score wins) was replaced in Phase 7-01.
+        """
         path = "notes/dup.md"
         kb_hits = [_hit(path, score=0.50)]
         kw_hits = [_hit(path, score=0.80)]
@@ -700,7 +706,9 @@ class TestSearchStrategy:
         paths = [n.path for n in result.notes]
         assert paths.count(path) == 1
         dup_note = next(n for n in result.notes if n.path == path)
-        assert dup_note.score == 0.80
+        # Hybrid wins regardless of score — origin tag pins the new contract
+        assert dup_note.origin == "hybrid"
+        assert dup_note.score == 0.50
 
     def test_retrieve_with_memory_uses_strategy(self):
         """retrieve_with_memory() must respect search_strategy parameter."""
@@ -717,3 +725,112 @@ class TestSearchStrategy:
 
         kb_backend.keyword_search.assert_called_once_with("Rosely")
         assert len(result.notes) == 1
+
+
+# ---------------------------------------------------------------------------
+# Origin tagging (Phase 7-01)
+# ---------------------------------------------------------------------------
+
+
+class TestOriginTagging:
+    """Each emitted RetrievedNote is tagged with the source path it came from."""
+
+    def test_hybrid_branch_tags_hybrid_origin(self):
+        # backend.search returns 1 hit; keyword branch unused; assert origin="hybrid"
+        kb_hits = [_hit("notes/a.md", score=0.80)]
+        backend = _mock_backend_with_keyword(
+            _response(kb_hits),
+            QMDSearchResponse(ok=True, hits=()),
+            fetch_content={"notes/a.md": "content a"},
+        )
+        result = RetrievalService(search_backend=backend).retrieve("query")
+        assert len(result.notes) == 1
+        assert result.notes[0].origin == "hybrid"
+
+    def test_keyword_branch_tags_keyword_origin(self):
+        # search_strategy="keyword" with terms; assert origin="keyword"
+        kw_hits = [_hit("notes/rosely.md", score=0.60)]
+        backend = _mock_backend_with_keyword(
+            _response([]),
+            QMDSearchResponse(ok=True, hits=tuple(kw_hits)),
+            fetch_content={"notes/rosely.md": "rosely content"},
+        )
+        result = RetrievalService(search_backend=backend).retrieve(
+            "find Rosely", search_strategy="keyword", search_terms=["Rosely"]
+        )
+        assert len(result.notes) == 1
+        assert result.notes[0].origin == "keyword"
+
+    def test_both_strategy_tags_origin_per_source(self):
+        # backend.search returns hit A; keyword_search returns hit B (different path);
+        # assert note A origin="hybrid", note B origin="keyword"
+        kb_hits = [_hit("notes/semantic.md", score=0.80)]
+        kw_hits = [_hit("notes/rosely.md", score=0.60)]
+        backend = _mock_backend_with_keyword(
+            _response(kb_hits),
+            QMDSearchResponse(ok=True, hits=tuple(kw_hits)),
+            fetch_content={
+                "notes/semantic.md": "semantic content",
+                "notes/rosely.md": "rosely content",
+            },
+        )
+        result = RetrievalService(search_backend=backend).retrieve(
+            "notas sobre Rosely", search_strategy="both", search_terms=["Rosely"]
+        )
+        by_path = {n.path: n for n in result.notes}
+        assert by_path["notes/semantic.md"].origin == "hybrid"
+        assert by_path["notes/rosely.md"].origin == "keyword"
+
+    def test_cross_origin_dedup_keeps_hybrid_when_same_path(self):
+        # Both backends return same path; assert single note with origin="hybrid"
+        path = "notes/dup.md"
+        kb_hits = [_hit(path, score=0.50)]
+        kw_hits = [_hit(path, score=0.80)]
+        backend = _mock_backend_with_keyword(
+            _response(kb_hits),
+            QMDSearchResponse(ok=True, hits=tuple(kw_hits)),
+            fetch_content={path: "deduped content"},
+        )
+        result = RetrievalService(search_backend=backend).retrieve(
+            "notas sobre Rosely", search_strategy="both", search_terms=["Rosely"]
+        )
+        # Single note kept, origin="hybrid" wins over keyword
+        assert len(result.notes) == 1
+        assert result.notes[0].path == path
+        assert result.notes[0].origin == "hybrid"
+
+    def test_retrieve_with_memory_tags_vault_hybrid_and_memory_hybrid(self):
+        kb_hits = [_hit("vault/note.md", score=0.90)]
+        mem_hits = [_hit("memory/2024-01.md", score=0.85)]
+        kb_backend = _mock_backend_with_keyword(
+            _response(kb_hits),
+            QMDSearchResponse(ok=True, hits=()),
+            fetch_content={"vault/note.md": "vault content"},
+        )
+        mem_backend = _mock_backend(
+            _response(mem_hits),
+            fetch_content={"memory/2024-01.md": "memory content"},
+        )
+        service = RetrievalService(search_backend=kb_backend, memory_backend=mem_backend)
+        result = service.retrieve_with_memory("query")
+        # Vault note: hybrid (from semantic search), origin must be "hybrid"
+        # Memory note: memory backend uses semantic only -> origin="hybrid"
+        for note in result.notes:
+            assert note.origin == "hybrid", f"Unexpected origin {note.origin} for {note.path}"
+
+    def test_retrieve_with_memory_keyword_branch_tags_keyword(self):
+        # KB keyword strategy + memory; vault note must be tagged origin="keyword"
+        kw_hits = [_hit("vault/rosely.md", score=0.60)]
+        kb_backend = _mock_backend_with_keyword(
+            _response([]),
+            QMDSearchResponse(ok=True, hits=tuple(kw_hits)),
+            fetch_content={"vault/rosely.md": "rosely content"},
+        )
+        mem_backend = _mock_backend(_response([]))
+        service = RetrievalService(search_backend=kb_backend, memory_backend=mem_backend)
+        result = service.retrieve_with_memory(
+            "find Rosely", search_strategy="keyword", search_terms=["Rosely"]
+        )
+        vault_notes = [n for n in result.notes if n.source == "vault"]
+        assert len(vault_notes) == 1
+        assert vault_notes[0].origin == "keyword"

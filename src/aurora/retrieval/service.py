@@ -77,36 +77,20 @@ class RetrievalService:
         - "hybrid": qmd query (semantic + keyword + rerank) — default
         - "keyword": qmd search (BM25 exact match) — best for names, specific terms
         - "both": run both and merge results
+
+        Hits are split into hybrid- and keyword-origin buckets so emitted
+        RetrievedNotes can be tagged accurately (Phase 7 sufficiency primitive
+        applies the top-score floor only against hybrid hits — RESEARCH §2).
         """
-        all_hits: tuple[QMDSearchHit, ...] = ()
         terms = search_terms or []
+        hybrid_hits, keyword_hits = self._search_with_strategy_split(
+            self._backend, query, search_strategy, terms
+        )
 
-        if search_strategy == "keyword" and terms:
-            # Keyword-only: search each term
-            for term in terms:
-                response = self._backend.keyword_search(term)
-                if response.ok:
-                    all_hits = all_hits + response.hits
-        elif search_strategy == "both":
-            # Hybrid + keyword for specific terms
-            search_response = self._backend.search(query)
-            all_hits = search_response.hits if search_response.ok else ()
-            for term in terms:
-                response = self._backend.keyword_search(term)
-                if response.ok:
-                    all_hits = all_hits + response.hits
-        else:
-            # Default hybrid
-            search_response = self._backend.search(query)
-            all_hits = search_response.hits if search_response.ok else ()
-
-        if not all_hits:
-            logger.debug("retrieve: no results for query (ok=%s)", search_response.ok)
+        if not hybrid_hits and not keyword_hits:
             return _INSUFFICIENT
 
-        unique_hits = self._dedup_hits(all_hits)
-        retrieved = self._fetch_notes(unique_hits, source="vault")
-
+        retrieved = self._fetch_notes_split(hybrid_hits, keyword_hits, source="vault")
         if not retrieved:
             return _INSUFFICIENT
 
@@ -128,7 +112,10 @@ class RetrievalService:
     ) -> RetrievalResult:
         """Query both KB and memory collections, merge results, memory-first."""
         terms = search_terms or []
-        kb_all_hits = self._search_with_strategy(self._backend, query, search_strategy, terms)
+        # Split KB hits by source path so we can tag origin per-bucket (RESEARCH §2)
+        kb_hybrid_hits, kb_keyword_hits = self._search_with_strategy_split(
+            self._backend, query, search_strategy, terms
+        )
 
         # Query memory collection; treat failures as empty (Pitfall 3)
         mem_hits: tuple[QMDSearchHit, ...] = ()
@@ -138,30 +125,23 @@ class RetrievalService:
                 mem_hits = mem_response.hits
 
         # Gate: no results from either source
-        has_kb = bool(kb_all_hits)
+        has_kb = bool(kb_hybrid_hits) or bool(kb_keyword_hits)
         has_mem = bool(mem_hits)
         if not has_kb and not has_mem:
             return _INSUFFICIENT
 
-        # Dedup and fetch vault notes (source="vault")
-        kb_unique = self._dedup_hits(kb_all_hits)
-        vault_notes = self._fetch_notes(kb_unique, source="vault")
+        # Vault notes: hybrid + keyword bucketed (cross-origin dedup keeps hybrid)
+        vault_notes = self._fetch_notes_split(
+            kb_hybrid_hits, kb_keyword_hits, source="vault"
+        )
 
-        # Dedup and fetch memory notes (source="memory")
+        # Dedup and fetch memory notes (source="memory", origin="hybrid" — memory uses semantic only)
         mem_unique = self._dedup_hits(mem_hits)
         memory_notes: list[RetrievedNote] = []
         if self._memory_backend is not None:
-            for hit in mem_unique:
-                content = self._memory_backend.fetch(hit.path)
-                if content is not None:
-                    memory_notes.append(
-                        RetrievedNote(
-                            path=hit.path,
-                            score=hit.score,
-                            content=content,
-                            source="memory",
-                        )
-                    )
+            memory_notes = self._fetch_notes(
+                mem_unique, source="memory", origin="hybrid", backend=self._memory_backend
+            )
 
         all_notes = memory_notes + vault_notes  # MEMORY first (D-04)
         if not all_notes:
@@ -184,7 +164,10 @@ class RetrievalService:
     ) -> RetrievalResult:
         """Query both KB and memory collections, merge results, vault-first."""
         terms = search_terms or []
-        kb_all_hits = self._search_with_strategy(self._backend, query, search_strategy, terms)
+        # Split KB hits by source path so we can tag origin per-bucket (RESEARCH §2)
+        kb_hybrid_hits, kb_keyword_hits = self._search_with_strategy_split(
+            self._backend, query, search_strategy, terms
+        )
 
         # Query memory collection; treat failures as empty (Pitfall 3)
         mem_hits: tuple[QMDSearchHit, ...] = ()
@@ -194,30 +177,23 @@ class RetrievalService:
                 mem_hits = mem_response.hits
 
         # Gate: no results from either source
-        has_kb = bool(kb_all_hits)
+        has_kb = bool(kb_hybrid_hits) or bool(kb_keyword_hits)
         has_mem = bool(mem_hits)
         if not has_kb and not has_mem:
             return _INSUFFICIENT
 
-        # Dedup and fetch vault notes (source="vault")
-        kb_unique = self._dedup_hits(kb_all_hits)
-        vault_notes = self._fetch_notes(kb_unique, source="vault")
+        # Vault notes: hybrid + keyword bucketed (cross-origin dedup keeps hybrid)
+        vault_notes = self._fetch_notes_split(
+            kb_hybrid_hits, kb_keyword_hits, source="vault"
+        )
 
-        # Dedup and fetch memory notes (source="memory")
+        # Dedup and fetch memory notes (source="memory", origin="hybrid" — memory uses semantic only)
         mem_unique = self._dedup_hits(mem_hits)
         memory_notes: list[RetrievedNote] = []
         if self._memory_backend is not None:
-            for hit in mem_unique:
-                content = self._memory_backend.fetch(hit.path)
-                if content is not None:
-                    memory_notes.append(
-                        RetrievedNote(
-                            path=hit.path,
-                            score=hit.score,
-                            content=content,
-                            source="memory",
-                        )
-                    )
+            memory_notes = self._fetch_notes(
+                mem_unique, source="memory", origin="hybrid", backend=self._memory_backend
+            )
 
         all_notes = vault_notes + memory_notes  # vault first (D-14)
         if not all_notes:
@@ -286,6 +262,65 @@ class RetrievalService:
 
         return all_hits
 
+    def _search_with_strategy_split(
+        self,
+        backend: QMDSearchBackend,
+        query: str,
+        strategy: str,
+        terms: list[str],
+    ) -> tuple[tuple[QMDSearchHit, ...], tuple[QMDSearchHit, ...]]:
+        """Execute search using the LLM strategy and split into (hybrid, keyword) buckets.
+
+        Phase 7-01 introduced this helper alongside the legacy _search_with_strategy
+        so each bucket can be tagged with its retrieval-path origin downstream
+        (origin="hybrid" for backend.search, origin="keyword" for backend.keyword_search).
+        Existing callers of _search_with_strategy are unchanged.
+        """
+        hybrid_hits: tuple[QMDSearchHit, ...] = ()
+        keyword_hits: tuple[QMDSearchHit, ...] = ()
+
+        if strategy == "keyword" and terms:
+            for term in terms:
+                response = backend.keyword_search(term)
+                if response.ok:
+                    keyword_hits = keyword_hits + response.hits
+        elif strategy == "both":
+            response = backend.search(query)
+            hybrid_hits = response.hits if response.ok else ()
+            for term in terms:
+                kw_response = backend.keyword_search(term)
+                if kw_response.ok:
+                    keyword_hits = keyword_hits + kw_response.hits
+        else:  # hybrid (default)
+            response = backend.search(query)
+            hybrid_hits = response.hits if response.ok else ()
+
+        return hybrid_hits, keyword_hits
+
+    def _fetch_notes_split(
+        self,
+        hybrid_hits: tuple[QMDSearchHit, ...],
+        keyword_hits: tuple[QMDSearchHit, ...],
+        *,
+        source: str = "vault",
+    ) -> list[RetrievedNote]:
+        """Dedup each bucket and fetch notes tagged with the correct origin.
+
+        Cross-origin dedup: when the same path appears in both buckets, the
+        hybrid hit wins (semantic ranking is more meaningful than BM25 for the
+        sufficiency primitive's top-score check).
+        """
+        hybrid_unique = self._dedup_hits(hybrid_hits) if hybrid_hits else []
+        keyword_unique = self._dedup_hits(keyword_hits) if keyword_hits else []
+
+        # Cross-origin dedup: prefer hybrid (semantic) when same path appears in both
+        hybrid_paths = {h.path for h in hybrid_unique}
+        keyword_unique = [h for h in keyword_unique if h.path not in hybrid_paths]
+
+        hybrid_notes = self._fetch_notes(hybrid_unique, source=source, origin="hybrid")
+        keyword_notes = self._fetch_notes(keyword_unique, source=source, origin="keyword")
+        return hybrid_notes + keyword_notes
+
     def _dedup_hits(self, hits: tuple[QMDSearchHit, ...]) -> list[QMDSearchHit]:
         """Deduplicate hits by path, keeping highest score per path (per D-09)."""
         best_by_path: dict[str, float] = {}
@@ -312,9 +347,16 @@ class RetrievalService:
         hits: list[QMDSearchHit],
         *,
         source: str = "vault",
+        origin: str = "hybrid",
         backend: QMDSearchBackend | None = None,
     ) -> list[RetrievedNote]:
-        """Fetch full content for each hit, skip None returns (per D-03)."""
+        """Fetch full content for each hit, skip None returns (per D-03).
+
+        The ``origin`` kw-arg tags each emitted note with its retrieval source path
+        ("hybrid" for backend.search, "keyword" for backend.keyword_search, "carry"
+        for ChatSession's _apply_carry_forward supplements). Phase 7 sufficiency
+        primitive uses this to apply the top-score floor only against hybrid hits.
+        """
         _backend = backend if backend is not None else self._backend
         retrieved: list[RetrievedNote] = []
         for hit in hits:
@@ -323,7 +365,13 @@ class RetrievalService:
                 logger.debug("_fetch_notes: skipping %s (fetch returned None)", hit.path)
                 continue
             retrieved.append(
-                RetrievedNote(path=hit.path, score=hit.score, content=content, source=source)
+                RetrievedNote(
+                    path=hit.path,
+                    score=hit.score,
+                    content=content,
+                    source=source,
+                    origin=origin,
+                )
             )
         return retrieved
 
