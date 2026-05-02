@@ -95,13 +95,15 @@ The planner decides these — they were intentionally left open so the planner c
 - LLM prompts module (`src/aurora/llm/prompts.py` or wherever existing prompts live) — add `REFORMULATION_PROMPT` (pt-BR, see D-06) and optional `SUFFICIENCY_JUDGE_PROMPT`.
 
 ### Settings
-- `src/aurora/runtime/settings.py` — add five new fields per D-01 / D-11:
+- `src/aurora/runtime/settings.py` — add five-or-six new fields per D-01 / D-11 / D-12:
   - `iterative_retrieval_enabled: bool = True` (D-11)
   - `iterative_retrieval_judge: bool = False` (D-01)
   - `retrieval_min_top_score: float` (default — planner discretion)
   - `retrieval_min_hits: int = 2`
   - `retrieval_min_context_chars: int` (default — planner discretion)
+  - `iterative_retrieval_jaccard_threshold: float = 0.7` (D-12 explicitly says "tunable" — planner may promote the threshold to a setting OR keep it as a module-level constant; either is consistent with the locked decision)
   - All with pt-BR validators, mirroring the existing `retrieval_top_k` validator pattern.
+  - Notably absent: NO `retrieval_max_attempts` field — the cap is fixed at 1 reformulation per D-03, hardcoded in the orchestrator.
 
 ### Requirements + lineage
 - `.planning/REQUIREMENTS.md` — RET-01, RET-03, RET-04 (enhanced); PRIV-03 (trace must not leak content).
