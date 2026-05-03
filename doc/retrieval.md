@@ -17,10 +17,11 @@
 9. [Dedupe and multi-source merging](#9-dedupe-and-multi-source-merging)
 10. [Context assembly — from notes to a prompt](#10-context-assembly--from-notes-to-a-prompt)
 11. [The "insufficient evidence" path — dual-layer enforcement](#11-the-insufficient-evidence-path--dual-layer-enforcement)
-12. [The citation contract](#12-the-citation-contract)
-13. [Design decisions and tradeoffs](#13-design-decisions-and-tradeoffs)
-14. [Exercises — trace it yourself](#14-exercises--trace-it-yourself)
-15. [Where to go next](#15-where-to-go-next)
+12. [Iterative retrieval — when one attempt isn't enough](#12-iterative-retrieval--when-one-attempt-isnt-enough)
+13. [The citation contract](#13-the-citation-contract)
+14. [Design decisions and tradeoffs](#14-design-decisions-and-tradeoffs)
+15. [Exercises — trace it yourself](#15-exercises--trace-it-yourself)
+16. [Where to go next](#16-where-to-go-next)
 
 ---
 
@@ -85,11 +86,23 @@ This bet has a failure mode — you can miss the relevant note, or retrieve the 
                                                     │
                                                     ▼
                                          ┌─────────────────────┐
-                                         │  hits (path, score) │
-                                         └──────────┬──────────┘
-                                                    │ dedupe, top-K,
-                                                    │ min-score gate
-                                                    ▼
+                                         │  hits (path, score) │  ◄────┐
+                                         └──────────┬──────────┘       │
+                                                    │ dedupe, top-K,   │
+                                                    │ min-score gate   │
+                                                    ▼                  │
+                                         ┌─────────────────────┐       │
+                                         │  Sufficient?        │       │ optional
+                                         │  (deterministic;    │       │ retry
+                                         │   §12)              │       │ (max 1×)
+                                         └─────┬────────┬──────┘       │
+                                               │ thin   │ ok           │
+                                               ▼        │              │
+                                    ┌─────────────────┐ │              │
+                                    │ LLM reformulate │ │              │
+                                    │ + Revisando…    │─┼──────────────┘
+                                    └─────────────────┘ │
+                                                        ▼
                                          ┌─────────────────────┐
                                          │   qmd get <path>    │
                                          │   (full content)    │
@@ -104,11 +117,12 @@ This bet has a failure mode — you can miss the relevant note, or retrieve the 
                                            with grounded prompt
 ```
 
-Three things to internalize:
+Four things to internalize:
 
 1. **Write path and read path are separate.** Ingest/update/rebuild happen on user command; retrieval happens per-question. They share QMD but little else.
 2. **QMD is treated as an external tool.** Aurora shells out via subprocess — it does not embed QMD as a library. More on this in §5.
-3. **Retrieval is two LLM calls, not one.** One to decide *how* to search (intent + strategy), one to answer *with* the retrieved notes. The first one is small and cheap; the second is the user-visible streaming answer.
+3. **Retrieval is two LLM calls, not one — sometimes three.** One to decide *how* to search (intent + strategy), one to answer *with* the retrieved notes. When the first retrieval comes up thin, an optional third call reformulates the query and a second retrieval runs (§12). The first one is small and cheap; the third is also small but only fires when needed; the second is the user-visible streaming answer.
+4. **The loop is bounded.** At most one reformulation, two retrievals total. Hard cap, not configurable. Disabled cleanly via the `iterative_retrieval_enabled` setting.
 
 ---
 
@@ -413,6 +427,10 @@ Simple. The flags map to:
 
 QMD's `query` can be configured to run a cross-encoder reranker on the top N candidates before returning them. Whether that runs depends on QMD's config, not Aurora's. From Aurora's perspective, hits come back pre-ranked.
 
+### 7.5 What if the first attempt is thin?
+
+Everything in §7.1–§7.4 describes a single retrieval. When that retrieval returns weak evidence (low top score, few hits, tiny assembled context), Aurora can run *one* reformulated retrieval before deciding what to answer. That logic lives one layer above the query path, in the `IterativeRetrievalOrchestrator`. See **§12** for the full pipeline — sufficiency check, reformulation prompt, Jaccard guard against synonym-swap rewrites, status line, and the `--trace` observability surface.
+
 ---
 
 ## 8. Retrieval parameters — top_k and min_score
@@ -449,6 +467,21 @@ def _validate(cls, value):
 ```
 
 The ranges aren't arbitrary. Below 5, you're starving the LLM of context. Above 30, you're drowning the prompt and spending context budget that would be better used on carry-forward notes or memory.
+
+### 8.4 Iterative retrieval thresholds
+
+Phase 7 added six new settings on `RuntimeSettings` that govern the iterative loop (§12). They're independent of `top_k` / `min_score` — those still control individual retrievals; these control whether the loop runs at all and how it decides "evidence is thin."
+
+| Setting | Default | Purpose |
+|---|---|---|
+| `iterative_retrieval_enabled` | `True` | Master kill-switch. `False` falls back to today's single-shot behavior, byte-for-byte (§12.8). |
+| `iterative_retrieval_judge` | `False` | Opt-in LLM sufficiency judge. When on, an extra small structured-output LLM call validates the deterministic verdict before triggering reformulation. Off by default for predictable latency. |
+| `retrieval_min_top_score` | `0.35` | Top-1 hit score floor. Below this, the deterministic check trips "thin" — but only on hybrid-origin hits (BM25 scores aren't on the same scale; see §12.2). |
+| `retrieval_min_hits` | `2` | Minimum hit count above the floor. One hit is suspicious. |
+| `retrieval_min_context_chars` | `800` | Minimum assembled context length. Hits exist but the snippets are too small to ground an answer. |
+| `iterative_retrieval_jaccard_threshold` | `0.7` | Token Jaccard similarity above which a reformulation is considered "too similar to the original" — short-circuits the loop to avoid wasting a retrieval on a synonym swap (§12.4). |
+
+All six follow the same pt-BR validator pattern as `retrieval_top_k`, surface in `aurora config show` under an "Iterative retrieval" section, and are persisted alongside other runtime settings.
 
 ---
 
@@ -555,6 +588,8 @@ If the search returns *zero* hits above the min_score threshold, the retrieval s
 
 This is deterministic and bypass-proof. No amount of clever prompting can make the system fabricate an answer when retrieval returned nothing.
 
+**With the iterative loop enabled (§12), the gate triggers only after BOTH attempts fail.** The orchestrator's cross-attempt merge preserves `insufficient_evidence=True` when *both* attempts return zero notes — so a thin first attempt that gets rescued by reformulation never trips this gate, but a question the vault genuinely can't answer still does. The Layer-1 contract is unchanged in spirit: if the system has nothing to say, it says so honestly.
+
 **Layer 2 — Prompt guardrail.** `src/aurora/llm/prompts.py:13-20`:
 
 ```
@@ -581,7 +616,165 @@ This is a knob to tune per-vault. 0.30 was chosen as a reasonable default for ty
 
 ---
 
-## 12. The citation contract
+## 12. Iterative retrieval — when one attempt isn't enough
+
+Single-shot retrieval (§7–§11) works when the user's question is well-aligned with how their notes are written. When it isn't — vague queries, ambiguous proper nouns, follow-ups that drop context — the first attempt comes up thin and the answer suffers. Phase 7 added a bounded retry loop on top of everything in §7–§11.
+
+The loop is deliberately narrow:
+
+- **At most one reformulation.** Two retrievals total per question, hard cap. No knob to make it more.
+- **Deterministic sufficiency check by default.** Numeric thresholds (§8.4), no LLM call to decide whether to retry.
+- **LLM-driven reformulation only when the deterministic check says retry.** And even then, only one new query.
+- **Visible UX.** A `Revisando busca…` status line on stderr so the user knows latency comes from a real second attempt, not a hung process.
+- **Kill-switch.** One settings flag (§8.4 `iterative_retrieval_enabled`) turns the loop off and falls back to today's single-shot behavior, byte-for-byte.
+
+### 12.1 The orchestrator — composition, not inheritance
+
+The loop lives in `src/aurora/retrieval/iterative.py` as `IterativeRetrievalOrchestrator`. It does not subclass `RetrievalService` — it composes one. The constructor:
+
+```python
+class IterativeRetrievalOrchestrator:
+    def __init__(
+        self,
+        *,
+        llm: LLMService,
+        settings_loader: Callable[[], RuntimeSettings] = load_settings,
+        on_status: Callable[[str], None] | None = None,
+    ) -> None: ...
+```
+
+`on_status` is the callback that surfaces the visible status line. The orchestrator calls it with `"Revisando busca..."` *before* the second retrieval runs — so the user sees the message during the LLM reformulation + second search, not after they're done. The CLI wires the callback to `typer.echo(msg, err=True)`.
+
+The public method:
+
+```python
+def run(
+    self,
+    query: str,
+    *,
+    intent: Literal["vault", "memory"],
+    retrieve_fn: Callable,
+    search_strategy: str,
+    search_terms: tuple[str, ...],
+    first_attempt: RetrievalResult | None = None,
+) -> tuple[RetrievalResult, IterativeRetrievalTrace]: ...
+```
+
+`first_attempt` is the load-bearing parameter for [carry-forward composition](memory.md#53-carry-forward-a-small-but-clever-detail): `ChatSession` applies carry-forward to the first attempt *outside* the orchestrator, then passes the augmented result in. The orchestrator never knows about carry-forward — it just receives "here's what attempt 1 returned, decide whether to do attempt 2." This keeps the orchestrator focused on its actual job: deciding whether evidence is sufficient and reformulating if not.
+
+### 12.2 The deterministic sufficiency check
+
+`src/aurora/retrieval/sufficiency.py` exports a pure function:
+
+```python
+def judge_sufficiency_deterministic(
+    result: RetrievalResult,
+    settings: RuntimeSettings,
+) -> SufficiencyVerdict: ...
+```
+
+Three signals, any one trips "thin":
+
+| Signal | Setting | Why |
+|---|---|---|
+| Top-1 hit score below threshold | `retrieval_min_top_score` | A confident retrieval lands well above 0.30. Below 0.35 means the top hit is borderline. |
+| Fewer than N hits above floor | `retrieval_min_hits` | One hit is suspiciously sparse — usually means the query was too narrow. |
+| Assembled context length | `retrieval_min_context_chars` | Hits exist but they're tiny snippets. The LLM needs at least one substantive paragraph. |
+
+The function returns a `SufficiencyVerdict(sufficient: bool, reason: str)`. The reason string is stable — `"zero hits"`, `"1 hit"`, `"context 220 chars"`, `"top score 0.18"` — so it can be passed straight to the reformulation LLM as the *why*.
+
+**Score-scale split.** BM25 scores (from `qmd search`) are unbounded; hybrid scores (from `qmd query`) are 0.0–1.0. The top-score check applies *only* to hybrid-origin hits. Phase 7 added a `RetrievedNote.origin: Literal["hybrid", "keyword", "carry"]` field that tags each hit so the sufficiency function can scope correctly.
+
+The opt-in LLM judge (`iterative_retrieval_judge`, default off) runs *after* the deterministic check passes. It's a small structured y/n call asking "este contexto basta para responder?" — and **negative wins on tie**: a response containing both "sim" and "não" returns False. The cost of an unnecessary reformulation is one LLM call; the cost of skipping reformulation when evidence is genuinely thin is a bad answer. Conservative default.
+
+### 12.3 The reformulation — what the LLM sees, what it doesn't
+
+`LLMService.reformulate_query(original, sufficiency_reason)` is a small non-streaming call that returns one new pt-BR query string. The prompt sees:
+
+- **The original query.**
+- **The sufficiency reason** (`"top score 0.18"`, etc.).
+
+It does **NOT** see:
+- Note paths.
+- Note titles.
+- Note content snippets.
+
+This is a deliberate privacy-and-simplicity choice. Showing the LLM what was retrieved would let it produce a "differential" rewrite ("you found notes about X, the user wanted Y"). But it also means note text travels into a prompt-construction code path it didn't need to, increasing the surface for accidental leaks. The bet is that the sufficiency reason is enough signal for the LLM to push the rewrite in a useful direction.
+
+### 12.4 The Jaccard guard — don't waste a retrieval on a synonym swap
+
+LLMs sometimes "rewrite" by swapping one or two words ("find Maria" → "search Maria"). That's a wasted retrieval — the second search will return the same notes. The guard:
+
+```python
+def _token_jaccard(a: str, b: str) -> float: ...
+```
+
+If `_token_jaccard(original, reformulation) >= iterative_retrieval_jaccard_threshold` (default 0.7), the orchestrator skips the second retrieval and falls through with attempt 1's result. The user still sees the `Revisando busca…` status (it fired before reformulation), but the loop exits early and the existing insufficient-evidence path takes over from there.
+
+`_token_jaccard("", "")` returns 1.0 by convention — empty-vs-empty is "perfect overlap." This handles the degenerate case where a degraded LLM returns an empty string.
+
+### 12.5 Cross-attempt merge — preserving `insufficient_evidence`
+
+After attempt 2, the orchestrator merges results with attempt 1's via the existing `_dedup_hits` (§9.1). Critical invariant: when *both* attempts return empty, the merged result MUST keep `insufficient_evidence=True`. Otherwise §11's Layer-1 gate misfires and ChatSession calls the LLM with empty context — exactly the hallucination failure mode the gate was supposed to prevent.
+
+The merge code is explicit:
+
+```python
+merged_insufficient = current.insufficient_evidence and len(merged_notes) == 0
+```
+
+Pinned by an orchestrator-level test (`tests/retrieval/test_iterative.py::TestDoubleEmptyPreservesInsufficient`). This was one of the bugs found by the Phase 7 round-1 plan-checker pass and explicitly fixed before round 2 shipped.
+
+### 12.6 Reformulation persistence — visible to history, hidden from the LLM
+
+Each reformulation that runs gets persisted to the chat history JSONL as a system-role entry with the literal `[reformulation] ` prefix:
+
+```jsonl
+{"role": "system", "content": "[reformulation] notas recentes sobre Maria e bancos de dados"}
+```
+
+These entries are filtered out of `ChatHistory.get_recent` *before* max-turns slicing (so a reformulation never steals a slot from a real assistant turn). The user can inspect them by reading the JSONL directly, but the LLM's context window never sees them.
+
+Why persist at all? Two reasons:
+
+1. **Auditability.** When the user wonders "why did Aurora answer that?", inspecting the history shows the system tried twice and what the second query looked like.
+2. **Foundation for a future eval phase.** A future evaluation harness could consume these to score "did the reformulation help?" without re-running the LLM call.
+
+### 12.7 The `--trace` flag — full observability per turn
+
+`aurora ask --trace` and `aurora chat --trace` add a per-turn diagnostic block AFTER the answer:
+
+```
+retrieval trace:
+  attempt 1 [vault]: query="o que escrevi sobre isso ontem"
+    hits: 1, top_score: 0.18, context_chars: 220
+    sufficient: false (top score 0.18)
+  attempt 2 [vault]: query="notas recentes sobre eventos de ontem"
+    hits: 4, top_score: 0.52, context_chars: 1840
+    sufficient: true
+```
+
+In text mode, the trace goes to **stderr** — so `aurora ask --json` still produces valid JSON on stdout. In `--json` mode, the trace appears as a `trace` key in the JSON envelope. Both modes emit the trace symmetrically: on the happy path *and* on the insufficient-evidence path (a user asking a vague question that fails twice still gets to see what happened).
+
+**Privacy floor (PRIV-03).** The trace dataclasses (`AttemptTrace`, `IterativeRetrievalTrace` in `src/aurora/retrieval/contracts.py`) have *no field* that holds note content. No `snippet`, no `text`, no `body`. This is enforced structurally by `tests/retrieval/test_contracts.py::TestTraceDataclassPrivacy` — adding any field whose name is in the forbidden set (`content`, `snippet`, `text`, `body`, `note_content`, `excerpt`, `preview`, `fragment`, `passage`) fails the build. Privacy by *construction*, not by discipline.
+
+### 12.8 The kill-switch — byte-equivalence to single-shot
+
+`iterative_retrieval_enabled: bool = True` is the master switch. When set to `False`:
+
+- The orchestrator is still called but takes the disable branch.
+- It returns the first attempt's result directly, with an `IterativeRetrievalTrace` that has `enabled=False` and one attempt.
+- ChatSession's behavior matches today's single-shot retrieval byte-for-byte: same `RetrievalResult` notes tuple, same `context_text`, no status line, empty trace.
+
+Pinned by `TestDisablePathByteEquivalent`. This guarantees that anyone who finds the loop changes their answers in a way they don't like has a clean escape hatch with no side effects.
+
+### 12.9 Latency
+
+The loop's worst case adds: one reformulation LLM call + one extra retrieval (subprocess + embedding). On a local llama.cpp server hosting a 4–8B model and the tuned-default sufficiency thresholds, this is roughly 500–1500ms — well within human conversational tolerance. The bench script at `scripts/bench_iterative_retrieval.py` measures the enabled-vs-disabled ratio per query against your actual setup; it's not a CI test (latency assertions are flaky in CI), but it lets you verify "happy path stays ~1× single-shot, worst case stays ≤2.5×" against your real hardware.
+
+---
+
+## 13. The citation contract
 
 The system prompt tells the LLM to cite sources inline as `[path/note.md]`. This is enforced through:
 
@@ -599,47 +792,59 @@ The simpler world — trust the LLM to cite honestly, let the user verify — is
 
 ---
 
-## 13. Design decisions and tradeoffs
+## 14. Design decisions and tradeoffs
 
-### 13.1 Subprocess isolation for QMD
+### 14.1 Subprocess isolation for QMD
 
 Gains: language-boundary upgrades, failure isolation, reproducible command lines.
 Costs: subprocess startup overhead, no shared-memory optimizations.
 Verdict: unambiguously worth it at this scale.
 
-### 13.2 No chunking
+### 14.2 No chunking
 
 Gains: simpler pipeline, clearer citations, one fewer knob.
 Costs: worse retrieval on long monolithic notes.
 Verdict: a bet on the Obsidian authoring convention. If you break the convention, retrieval degrades gracefully but does degrade.
 
-### 13.3 Two-layer grounding defense (retrieval gate + prompt guardrail)
+### 14.3 Two-layer grounding defense (retrieval gate + prompt guardrail)
 
 Gains: deterministic refusal on hard cases, graceful refusal on soft cases.
 Costs: the retrieval gate can produce false refusals.
 Verdict: the right call for a personal-knowledge assistant. Hallucination is the most dangerous failure mode; false refusal is recoverable (the user rephrases).
 
-### 13.4 Hybrid search with intent-driven strategy
+### 14.4 Hybrid search with intent-driven strategy
 
 Gains: covers both semantic and keyword failure modes.
 Costs: an extra LLM call for intent + strategy extraction per turn.
 Verdict: the extra call pays for itself by raising precision.
 
-### 13.5 Shared QMD index across vault and memory
+### 14.5 Shared QMD index across vault and memory
 
 Gains: one embedding model, one vector space, one set of operational primitives.
 Costs: can't use a different embedding model for memory vs vault.
 Verdict: a constraint, but the simplicity payoff is large. If you ever need domain-specific embeddings, you'd split them.
 
-### 13.6 Aurora writes the corpus; QMD owns the index
+### 14.6 Aurora writes the corpus; QMD owns the index
 
 Gains: Aurora's source of truth is markdown (human-readable, git-friendly). The vector index is derived and rebuildable.
 Costs: rebuilding embeddings after a QMD model change is a separate step the user has to run.
 Verdict: the "markdown as source of truth" principle is non-negotiable for an Obsidian-integrated tool.
 
+### 14.7 Bounded iterative retrieval (one reformulation max)
+
+Gains: rescues thin-evidence queries without unbounded latency; predictable worst case (~2× single-shot); small surface area (one orchestrator class, no new backend).
+Costs: still bounded — won't rescue queries that need three or more attempts to converge; reformulation is an extra LLM call when it fires.
+Verdict: matches Aurora's "deterministic signal first, LLM as the rescue path" pattern from the 04.x phases. Fixed cap (rather than configurable range 1–4) was chosen explicitly during discussion to remove a knob whose tuning has no clear payoff. If a different shape ever wins (e.g., parallel multi-query), it's a new phase, not a parameter change.
+
+### 14.8 Deterministic sufficiency first, LLM judge as opt-in
+
+Gains: zero extra LLM calls on the happy path (deterministic verdict only); fast and reproducible; LLM judge available for users who want the smarter check.
+Costs: deterministic check can miss "5 mediocre off-topic notes" patterns where each individual hit looks fine but the cluster doesn't actually answer the question.
+Verdict: predictable latency is a feature for an interactive CLI. Users who hit the off-topic-cluster failure mode can flip `iterative_retrieval_judge=true` per their tolerance.
+
 ---
 
-## 14. Exercises — trace it yourself
+## 15. Exercises — trace it yourself
 
 1. **Trace a hit through the pipeline.** Write a note with a distinctive phrase ("capybaras and typewriters"). Run `aurora config kb update`. Run `aurora ask "capybaras"`. Follow it from `qmd query` subprocess call → JSON parse → dedupe → context assembly → prompt. Which file's code owns each step?
 
@@ -653,13 +858,19 @@ Verdict: the "markdown as source of truth" principle is non-negotiable for an Ob
 
 6. **Exhaust the context budget.** Write 20 notes on one topic and `ingest`. Ask a question that retrieves all 20. Are any dropped by the 24K truncation? Which ones — the lowest-scored? How many characters make it into the prompt?
 
+7. **Force the iterative loop to fire.** Ask a deliberately vague question (`aurora ask "o que escrevi sobre isso ontem" --trace`). Watch stderr — does `Revisando busca…` appear? Does the trace block show two attempts with different queries? Run it again with a specific phrase from a real note — does the loop NOT fire that time?
+
+8. **Disable the loop and confirm byte-equivalence.** Set `iterative_retrieval_enabled=false` in your settings. Ask the same vague question. Confirm: no status line, trace shows one attempt, the answer is what you'd have gotten before Phase 7. Re-enable and verify the loop is back.
+
+9. **Trip the Jaccard guard.** Find a query the LLM tends to "rewrite" by swapping one word (you may need to try several). With `--trace`, watch the loop exit early after attempt 1 because the reformulation was too similar. What's the Jaccard score in the trace? Lower `iterative_retrieval_jaccard_threshold` to 0.5 — does the same query now go through to attempt 2?
+
 Bonus hard mode:
 - **Change the embedding granularity.** Fork the ingest code to split each note into 500-word chunks before writing to the corpus. What breaks first? Citation format? Dedupe? Context assembly?
 - **Add a third search strategy.** What would a `"semantic-only"` strategy look like? When would you choose it over `hybrid`?
 
 ---
 
-## 15. Where to go next
+## 16. Where to go next
 
 | To understand... | Read... |
 |---|---|
@@ -684,5 +895,8 @@ Bonus hard mode:
 - **Dedupe by path** — When the same note surfaces in multiple searches, keep its best score; drop the rest.
 - **Vault-first vs memory-first** — Ordering in context assembly shapes LLM attention and truncation behavior.
 - **24K context budget** — Hard truncation after this many chars. Later notes are simply dropped from that query.
-- **Insufficient evidence** — Dual-layer: hard refusal when retrieval is empty, soft refusal via prompt when hits are weak.
+- **Insufficient evidence** — Dual-layer: hard refusal when retrieval is empty, soft refusal via prompt when hits are weak. With the iterative loop on, fires only after BOTH attempts come up empty.
+- **Iterative retrieval (Phase 7)** — Bounded one-reformulation loop. Deterministic sufficiency check, LLM rewrite when thin, Jaccard guard against synonym-swap rewrites, visible `Revisando busca…` status, opt-in `--trace` for full diagnostics.
+- **`origin` field** — `RetrievedNote.origin: Literal["hybrid", "keyword", "carry"]` tags how each hit arrived, so the sufficiency check can scope per-mode (BM25 scores aren't comparable to hybrid scores).
+- **Reformulation persistence** — Each reformulated query lands in the chat history JSONL with a `[reformulation]` prefix; filtered out before reaching the LLM context window.
 - **Citation contract** — Prompt-enforced `[path/note.md]` format, user-verified, not programmatically validated.
