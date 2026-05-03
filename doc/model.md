@@ -328,7 +328,7 @@ Both streaming and non-streaming requests hit `/v1/chat/completions`. The only d
 
 **Aurora uses streaming for user-facing answers** — `aurora ask`, every chat turn in `aurora chat`. Reason: UX. Tokens feel immediate as they arrive.
 
-**Aurora uses sync for internal LLM calls** — intent classification, session summarization. Reason: the caller needs the full string before doing anything with it (parsing intent, writing a memory file). There's no "partial" to render.
+**Aurora uses sync for internal LLM calls** — intent classification, session summarization, query reformulation (Phase 7), and the optional sufficiency judge (Phase 7). Reason: the caller needs the full string before doing anything with it (parsing intent, writing a memory file, building the next retrieval query, deciding whether to retry). There's no "partial" to render.
 
 Both paths share `src/aurora/llm/streaming.py`. The sync path (`chat_completion_sync()` at line 46) just POSTs with `stream=False` and returns `response["choices"][0]["message"]["content"]`.
 
@@ -429,13 +429,15 @@ All user-facing inference in Aurora funnels through **three system prompts** plu
 
 All live in `src/aurora/llm/prompts.py`.
 
-| Function | Line | When used |
-|---|---|---|
-| `get_system_prompt_grounded()` | 40 | `ask` (no memory) — "only answer from vault context; cite sources inline." |
-| `get_system_prompt_grounded_with_memory()` | 45 | `ask`/`chat` when memory is supplementing the vault. |
-| `get_system_prompt_chat()` | 50 | Freeform chat — no grounding, no vault context. |
-| `INTENT_PROMPT` | 61 | The classifier that decides vault/memory/chat (see [memory.md §5.1](memory.md#51-intent-classification--the-traffic-cop)). |
-| `SUMMARIZE_SESSION_PROMPT` | 116 | Background session summarization on chat exit. |
+| Function | When used |
+|---|---|
+| `get_system_prompt_grounded()` | `ask` (no memory) — "only answer from vault context; cite sources inline." |
+| `get_system_prompt_grounded_with_memory()` | `ask`/`chat` when memory is supplementing the vault. |
+| `get_system_prompt_chat()` | Freeform chat — no grounding, no vault context. |
+| `INTENT_PROMPT` | The classifier that decides vault/memory/chat (see [memory.md §5.1](memory.md#51-intent-classification--the-traffic-cop)). |
+| `SUMMARIZE_SESSION_PROMPT` | Background session summarization on chat exit. |
+| `REFORMULATION_SYSTEM_PROMPT` + `REFORMULATION_USER_PROMPT` | The Phase 7 iterative loop's reformulation call ([retrieval.md §12.3](retrieval.md#123-the-reformulation--what-the-llm-sees-what-it-doesnt)). System prompt fixes the role + privacy contract; user prompt template wraps the original query and the deterministic sufficiency reason. Privacy-by-construction: the prompt template has no slot for note paths or content. |
+| `SUFFICIENCY_JUDGE_PROMPT` | The Phase 7 opt-in LLM judge ([retrieval.md §12.2](retrieval.md#122-the-deterministic-sufficiency-check)). Asked "este contexto basta para responder?" — returns text containing "sim" / "não" with negative-wins-on-tie ambiguity policy. Off by default (`iterative_retrieval_judge=false`). |
 
 ### 10.1 Messages shape
 
