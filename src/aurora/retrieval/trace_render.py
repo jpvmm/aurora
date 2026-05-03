@@ -24,13 +24,29 @@ def _format_paths(paths: tuple[str, ...]) -> str:
     return f"{shown} (+{extra} more)"
 
 
+def _format_top_score(attempt: AttemptTrace) -> str:
+    """Render top_score honestly, disambiguating zero-hits from no-hybrid-hits.
+
+    Phase 7 score-scale split (D-02): top_score reflects ONLY hybrid-origin
+    hits. When hits exist but all are keyword/carry origin, the orchestrator
+    reports top_score=0.0 (iterative.py:_build_attempt_trace). Without this
+    annotation the trace looks identical to "all hybrid hits scored zero",
+    which is confusing during diagnostics.
+    """
+    if attempt.hit_count == 0:
+        return "top_score=N/A (no hits)"
+    if attempt.top_score == 0.0:
+        return "top_score=N/A (no hybrid hits)"
+    return f"top_score={attempt.top_score:.2f}"
+
+
 def _format_attempt(attempt: AttemptTrace) -> Iterable[str]:
     yield (
         f"  attempt {attempt.attempt_number}: "
         f"query=\"{attempt.query}\" "
         f"intent={attempt.intent} "
         f"hits={attempt.hit_count} "
-        f"top_score={attempt.top_score:.2f} "
+        f"{_format_top_score(attempt)} "
         f"sufficient={attempt.sufficient} "
         f"reason=\"{attempt.reason}\""
     )

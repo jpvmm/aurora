@@ -59,6 +59,42 @@ class TestRenderTraceText:
         out = render_trace_text(trace)
         assert "(+3 more)" in out
 
+    def test_top_score_renders_na_when_no_hits(self):
+        """hit_count=0 → 'top_score=N/A (no hits)' so trace doesn't lie about a 0.0 score."""
+        trace = IterativeRetrievalTrace(
+            attempts=(_attempt(hit_count=0, top_score=0.0, paths=()),),
+            judge_enabled=False,
+        )
+        out = render_trace_text(trace)
+        assert "top_score=N/A (no hits)" in out
+        assert "top_score=0.00" not in out, (
+            "Zero hits must render as N/A, not 0.00 — that masks the cause"
+        )
+
+    def test_top_score_renders_na_when_no_hybrid_hits(self):
+        """hit_count>0 but top_score=0.0 means all hits are keyword/carry origin (Phase 7 D-02 score-scale split).
+
+        Without this disambiguation the trace looks identical to "all hybrid hits scored 0",
+        which is misleading during diagnostics. Bug C from the 2026-05-03 debug session.
+        """
+        trace = IterativeRetrievalTrace(
+            attempts=(_attempt(hit_count=1, top_score=0.0, paths=("diario/14-04-2026.md",)),),
+            judge_enabled=False,
+        )
+        out = render_trace_text(trace)
+        assert "top_score=N/A (no hybrid hits)" in out
+        assert "hits=1" in out
+
+    def test_top_score_renders_numeric_when_hybrid_hits_present(self):
+        """Normal case: hybrid hit with real score renders as the numeric value."""
+        trace = IterativeRetrievalTrace(
+            attempts=(_attempt(hit_count=3, top_score=0.42),),
+            judge_enabled=False,
+        )
+        out = render_trace_text(trace)
+        assert "top_score=0.42" in out
+        assert "N/A" not in out
+
     def test_empty_paths_renders_none(self):
         trace = IterativeRetrievalTrace(
             attempts=(_attempt(paths=()),), judge_enabled=False,
