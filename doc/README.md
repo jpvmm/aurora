@@ -10,7 +10,7 @@ Each doc is standalone. Pick whichever topic you're curious about; there's no re
 |---|---|---|
 | [memory.md](memory.md) | How the agent's memory works | The two memory tiers, how a chat session becomes a persisted memory, how memories get pulled back into future answers, and why Aurora uses the design it does. |
 | [model.md](model.md) | How Aurora works with the model (and llama.cpp) | The full inference path: why llama.cpp, the HTTP surface (OpenAI-compat), managed vs external server lifecycle, the privacy gate, streaming vs sync, model download via Hugging Face, and how prompts are assembled end-to-end. |
-| [retrieval.md](retrieval.md) | How Aurora retrieves knowledge (RAG) | The full RAG pipeline: pre-processing (Templater stripping), the deliberate no-chunking choice, QMD as an external subprocess, hybrid search (semantic + BM25), intent-driven strategy, top-K / min-score tuning, context assembly under a 24K budget, the dual-layer "insufficient evidence" defense against hallucination, and the citation contract. |
+| [retrieval.md](retrieval.md) | How Aurora retrieves knowledge (RAG) | The full RAG pipeline: pre-processing (Templater stripping), the deliberate no-chunking choice, QMD as an external subprocess, hybrid search (semantic + BM25), intent-driven strategy, top-K / min-score tuning, context assembly under a 24K budget, the dual-layer "insufficient evidence" defense against hallucination, the citation contract, and the Phase 7 bounded iterative retrieval loop (deterministic sufficiency check, LLM-driven reformulation, `--trace` observability surface, byte-equivalent kill-switch). |
 
 ## Conventions
 
