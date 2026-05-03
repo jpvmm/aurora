@@ -23,6 +23,7 @@ Aurora is CLI-first. Portuguese (pt-BR) is the default response language. The ru
      - [`config kb`](#553-config-kb)
      - [`config model`](#554-config-model)
      - [`config memory`](#555-config-memory)
+     - [Retrieval tuning](#556-retrieval-tuning)
 6. [Where Aurora Stores Things](#6-where-aurora-stores-things)
 7. [Privacy Model](#7-privacy-model)
 8. [Troubleshooting](#8-troubleshooting)
@@ -193,13 +194,17 @@ Single-shot grounded question. Aurora classifies the question's intent, searches
 ```bash
 aurora ask "sua pergunta aqui"
 aurora ask --json "sua pergunta aqui"
+aurora ask --trace "sua pergunta aqui"
 ```
 
 | Flag | Effect |
 |---|---|
-| `--json` | Emit a structured JSON payload (`{query, answer, sources, insufficient_evidence}`) instead of streaming text. |
+| `--json` | Emit a structured JSON payload (`{query, answer, sources, insufficient_evidence}`) instead of streaming text. With `--trace`, the payload also gains a `trace` key. |
+| `--trace` | Print a per-attempt retrieval trace AFTER the answer. In text mode the trace goes to stderr (so `--json` stdout stays parseable); in `--json` mode the trace appears as a `trace` key in the JSON envelope. Trace contains paths/scores/queries only — no note content (PRIV-03). |
 
 If Aurora cannot find enough evidence in the vault or memory to answer honestly, it prints an "insufficient evidence" message rather than hallucinating.
+
+**About the iterative retrieval loop.** When the first retrieval returns thin evidence (low top-1 score, few hits, or tiny assembled context), Aurora reformulates the query via a small LLM call and runs **one** more retrieval before deciding what to answer. While the second attempt runs, you'll see `Revisando busca...` on stderr — that's intentional, so you know latency comes from a real second attempt rather than a hung process. The loop is bounded at one reformulation (max two retrievals per question), can be disabled with `iterative_retrieval_enabled=false` (see §5.5.6), and is fully observable via `--trace`. See [doc/retrieval.md §12](doc/retrieval.md#12-iterative-retrieval--when-one-attempt-isnt-enough) for the full design.
 
 **Example — text mode:**
 
@@ -222,6 +227,25 @@ Encontrei 4 nota(s) e 1 memoria(s). Gerando resposta...
 }
 ```
 
+**Example — `--trace` after a query that triggered the loop:**
+
+```
+$ aurora ask "o que escrevi sobre isso ontem" --trace
+Analisando pergunta...
+Buscando no vault e memorias...
+Revisando busca...
+Encontrei 4 nota(s). Gerando resposta...
+<streamed answer>
+
+retrieval trace:
+  attempt 1 [vault]: query="o que escrevi sobre isso ontem"
+    hits: 1, top_score: 0.18, context_chars: 220
+    sufficient: false (top score 0.18)
+  attempt 2 [vault]: query="notas recentes sobre eventos de ontem"
+    hits: 4, top_score: 0.52, context_chars: 1840
+    sufficient: true
+```
+
 ---
 
 ### 5.2 `aurora chat`
@@ -241,6 +265,7 @@ Flags:
 | Flag | Effect |
 |---|---|
 | `--clear` | Delete the in-memory chat history file and exit. Does NOT touch long-term memories. |
+| `--trace` | After each turn's answer, print a per-attempt retrieval trace to stderr. Same content as `aurora ask --trace` (queries, hit counts, scores, sufficiency verdicts, reformulation reasons). Useful for diagnosing why a particular turn answered the way it did. See [doc/retrieval.md §12.7](doc/retrieval.md#127-the---trace-flag--full-observability-per-turn). |
 
 **Example session:**
 
@@ -360,6 +385,7 @@ aurora config show
 Output sections:
 - **Runtime** — endpoint, model id, model source.
 - **KB** — vault path, active index name, active collection name, auto-embeddings flag.
+- **Iterative retrieval** — the six Phase 7 settings (`iterative_retrieval_enabled`, `iterative_retrieval_judge`, `retrieval_min_top_score`, `retrieval_min_hits`, `retrieval_min_context_chars`, `iterative_retrieval_jaccard_threshold`). See §5.5.6.
 - **Privacidade** — `local_only`, `telemetry_enabled`, and the defaults Aurora exports for `AGNO_TELEMETRY` / `GRAPHITI_TELEMETRY_ENABLED`.
 
 #### 5.5.2 `config setup`
@@ -494,6 +520,32 @@ The preferences file is a plain Markdown document where you can write:
 
 Preferences are Tier-1 memory — they are always loaded. Episodic memories are Tier-2 and retrieved via semantic search per-query.
 
+#### 5.5.6 Retrieval tuning
+
+Aurora's retrieval pipeline (described in detail in [doc/retrieval.md](doc/retrieval.md)) exposes the following settings on `RuntimeSettings`. Edit them via `settings.json` directly — there's no per-setting CLI subcommand for these. Defaults are tuned for typical Obsidian corpora.
+
+**Single-shot retrieval parameters** (apply to every retrieval, including those inside the loop):
+
+| Setting | Default | Range | Purpose |
+|---|---|---|---|
+| `retrieval_top_k` | `15` | 5–30 | Number of vault hits returned per query. Higher = more context, more truncation risk. |
+| `retrieval_min_score` | `0.30` | 0.0–1.0 | Minimum hybrid score for a vault hit to count. Below this, hits are dropped before assembly. |
+| `memory_top_k` | `5` | 1–20 | Number of memory hits returned. |
+| `memory_min_score` | `0.25` | 0.0–1.0 | Minimum score for a memory hit. Lower than vault because memories are summary-dense. |
+
+**Iterative loop parameters** (Phase 7 — govern the bounded one-reformulation rescue):
+
+| Setting | Default | Purpose |
+|---|---|---|
+| `iterative_retrieval_enabled` | `true` | Master kill-switch. Set to `false` to fall back to single-shot retrieval, byte-for-byte. |
+| `iterative_retrieval_judge` | `false` | Opt-in LLM sufficiency judge. When on, an extra small LLM call validates the deterministic verdict before reformulation. Off by default for predictable latency. |
+| `retrieval_min_top_score` | `0.35` | Top-1 hit score floor for the sufficiency check. Below = "thin", trip the loop. Applies only to hybrid-origin hits. |
+| `retrieval_min_hits` | `2` | Minimum hit count above the floor. One hit is suspiciously sparse. |
+| `retrieval_min_context_chars` | `800` | Minimum assembled context length. Hits exist but the snippets are too small. |
+| `iterative_retrieval_jaccard_threshold` | `0.7` | Token Jaccard similarity above which a reformulated query is considered "too similar to the original" — the loop exits early to avoid wasting a retrieval. |
+
+To inspect current values: `aurora config show` (under "Iterative retrieval"). To change them, edit `settings.json` in your Aurora config directory (§6) and Aurora will pick them up on next invocation. Validators reject out-of-range values with pt-BR error messages.
+
 ---
 
 ## 6. Where Aurora Stores Things
@@ -581,6 +633,20 @@ Aurora refused to answer because retrieval found nothing relevant enough. This i
 - Is the vault ingested? `aurora status` should show a non-zero note count.
 - Is the query in Portuguese? Retrieval is language-tuned — try rephrasing.
 - Consider increasing `retrieval_top_k` in `settings.json` (bounds: 5–30).
+- Run `aurora ask "<query>" --trace` to see what both retrieval attempts returned and what the sufficiency verdict was. Lowering `retrieval_min_score` or `retrieval_min_top_score` widens the gate.
+
+### Answers feel slower than before
+
+You might be hitting the iterative retrieval loop on thin queries. When the first retrieval comes up weak, Aurora reformulates the query and runs a second retrieval — that adds one LLM call + one extra search per affected question (typically 500–1500ms on a local llama.cpp + 4–8B model). To diagnose:
+
+```bash
+aurora ask "<the query>" --trace
+```
+
+Look at the trace block in stderr. If you see two attempts, the loop fired. From there:
+- **Live with it** — the loop is on by default because the quality win is usually worth the latency.
+- **Tune sufficiency thresholds** — raise `retrieval_min_top_score` or lower `retrieval_min_hits` (see §5.5.6) so fewer queries trip the loop.
+- **Disable entirely** — set `iterative_retrieval_enabled=false` in `settings.json`. Behavior reverts to today's single-shot retrieval, byte-for-byte.
 
 ### `kb update` reports zero notes but you just added some
 
