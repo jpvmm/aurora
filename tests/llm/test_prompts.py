@@ -74,6 +74,40 @@ def test_intent_prompt_has_memory_examples():
     assert any(phrase in INTENT_PROMPT for phrase in ["conversamos", "lembra", "ultima sessao"])
 
 
+def test_intent_prompt_clarifies_diary_is_vault_not_memory():
+    """INTENT_PROMPT must explicitly state that dated diary/journal queries are vault, not memory.
+
+    Previous symptom: 'o que fiz no dia 06-04-2026?' was classified as memory intent
+    by the LLM, routing the query to the (separately broken) aurora-memory QMD
+    collection instead of aurora-kb-managed where diario notes live.
+    """
+    assert "diario" in INTENT_PROMPT.lower() or "journal" in INTENT_PROMPT.lower(), (
+        "Vault description must mention diario/journal so the classifier doesn't "
+        "treat dated daily-note lookups as memory recall."
+    )
+    # The memory description must explicitly disclaim diary lookups
+    assert "diario" in INTENT_PROMPT.lower(), (
+        "Memory description must disclaim diary lookups to prevent intent mis-routing."
+    )
+
+
+def test_intent_prompt_has_dated_diary_example():
+    """INTENT_PROMPT must include at least one example of a date-stamped query routing to vault.
+
+    Without an explicit example, the LLM falls back to keyword matching against the
+    'sobre o que conversamos ontem?' memory example and mis-routes diary lookups.
+    """
+    # An example with intent: vault and a date pattern (DD-MM-YYYY style)
+    import re
+    has_dated_vault_example = bool(
+        re.search(r'"[^"]*\d{2}-\d{2}-\d{4}[^"]*"', INTENT_PROMPT)
+    )
+    assert has_dated_vault_example, (
+        "INTENT_PROMPT needs an example with a DD-MM-YYYY date pattern showing "
+        "the classifier routes such queries to vault, not memory."
+    )
+
+
 def test_intent_prompt_three_way_response_instruction():
     """INTENT_PROMPT must instruct structured response with intent, search, and terms."""
     assert "vault" in INTENT_PROMPT and "memory" in INTENT_PROMPT and "chat" in INTENT_PROMPT

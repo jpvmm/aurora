@@ -61,8 +61,8 @@ SYSTEM_PROMPT_CHAT = _CHAT_BASE.format(date_context=_date_context())
 INTENT_PROMPT = """Analise a mensagem do usuario e responda em formato estruturado.
 
 1. Classifique a intencao:
-- vault: pergunta sobre notas, documentos, informacoes do vault pessoal
-- memory: pergunta sobre conversas anteriores, historico de interacoes, memorias de sessoes passadas
+- vault: pergunta sobre notas, documentos, informacoes do vault pessoal — INCLUI notas de diario/journal/daily com datas (ex: "diario/14-04-2026.md"). Qualquer pergunta que referencia uma data especifica (formato DD-MM-AAAA, AAAA-MM-DD, ou "dia X de mes") provavelmente busca uma nota datada do vault.
+- memory: pergunta SOMENTE sobre conversas de chat anteriores com a propria Aurora — historico de sessoes interativas passadas. NAO use memory para perguntas sobre dias/datas especificos do diario do usuario; isso e vault.
 - chat: conversa geral, tarefa generica, sem relacao com vault nem memorias
 
 2. Defina a estrategia de busca (apenas para vault e memory):
@@ -100,6 +100,21 @@ Mensagem: "quem é o Anderson?"
 intent: vault
 search: keyword
 terms: Anderson
+
+Mensagem: "o que fiz no dia 06-04-2026?"
+intent: vault
+search: both
+terms: 06-04-2026, dia 06 abril 2026
+
+Mensagem: "abre meu diario de 14 de abril"
+intent: vault
+search: both
+terms: 14-04, 14 abril, diario 14 abril
+
+Mensagem: "qual foi a ultima sessao de chat que tivemos?"
+intent: memory
+search: hybrid
+terms: ultima sessao chat
 
 Mensagem: "me ajude a escrever um email"
 intent: chat
