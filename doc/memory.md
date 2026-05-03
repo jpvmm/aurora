@@ -261,6 +261,8 @@ Why? Because follow-up questions often drop the topic keyword. If I ask "o que a
 
 This is added to the phase 04.2 work and is the single subtlest feature in the memory system.
 
+**Composition with the iterative retrieval loop (Phase 7).** When the [iterative loop](retrieval.md#12-iterative-retrieval--when-one-attempt-isnt-enough) is enabled, carry-forward applies *exactly once*, *before* the first retrieval — never on the loop's second attempt. ChatSession is the layer that owns this: it calls `_apply_carry_forward()` to augment the first attempt's result, then passes that augmented result to `IterativeRetrievalOrchestrator.run(..., first_attempt=...)`. The orchestrator never re-applies carry-forward on attempt 2; if it did, carry-forward notes would get re-counted as "new evidence" by the second sufficiency check, falsely passing the gate even when the reformulated query alone is still thin. This was a load-bearing invariant during Phase 7 design — the orchestrator is deliberately ignorant of carry-forward so the composition can't drift over time.
+
 ### 5.4 Context assembly and prompt injection
 
 Retrieved notes (memory + vault, in intent-determined order) get assembled into a single context blob at `src/aurora/retrieval/service.py:330-353`:
@@ -464,6 +466,8 @@ The carry-forward at `src/aurora/chat/session.py:100-139` retains at most 3 path
 - 3 is empirically enough for most follow-up questions without drowning the prompt.
 
 This is tuned — you might tune differently for a domain with longer cross-turn references.
+
+The 3-path cap also keeps the [Phase 7 iterative loop](retrieval.md#12-iterative-retrieval--when-one-attempt-isnt-enough) honest: carry-forward augments attempt 1 and only attempt 1 (§5.3), so the sufficiency check never sees a runaway pile of carry-forward notes that would falsely pass the threshold. Cap + once-only application together make the composition deterministic.
 
 ### 8.5 Preferences are prepended, not appended
 
